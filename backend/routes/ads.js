@@ -111,24 +111,25 @@ async function resolvePageId(rawInput) {
 // ключевого слова, бьём параллельными запросами по всем её словам и склеиваем результат
 // (тот же приём, что и в allVerticalsMode, только в рамках одной ниши, а не всех сразу).
 const VERTICAL_SEED_KEYWORDS = {
-  ecommerce: ['shop', 'sale', 'free shipping', 'discount code', 'store'],
-  dating: ['dating', 'singles', 'meet singles', 'dating app'],
-  finance: ['crypto', 'bitcoin', 'forex', 'trading', 'invest', 'loan'],
-  gaming: ['game', 'play now', 'mobile game', 'download game'],
-  beauty: ['beauty', 'skincare', 'weight loss', 'supplement', 'anti aging'],
-  saas: ['app', 'software', 'free trial', 'subscription'],
-  education: ['course', 'online course', 'certificate', 'masterclass'],
-  travel: ['travel', 'flight deals', 'hotel deals', 'vacation'],
-  gambling: ['casino', 'slots', 'bet', 'poker', 'jackpot', 'free spins', 'bonus', 'sportsbook'],
+  ecommerce: ['shop', 'sale', 'free shipping', 'discount code', 'store', 'new collection', 'limited offer', 'buy now', 'black friday', 'flash sale'],
+  dating: ['dating', 'singles', 'meet singles', 'dating app', 'find love', 'match', 'chat now', 'meet people'],
+  finance: ['crypto', 'bitcoin', 'forex', 'trading', 'invest', 'loan', 'credit card', 'earn money', 'passive income'],
+  gaming: ['game', 'play now', 'mobile game', 'download game', 'free game', 'play free', 'new game', 'play to earn'],
+  beauty: ['beauty', 'skincare', 'weight loss', 'supplement', 'anti aging', 'hair growth', 'teeth whitening', 'fat burner'],
+  saas: ['app', 'software', 'free trial', 'subscription', 'download app', 'best app', 'ai tool', 'productivity app'],
+  education: ['course', 'online course', 'certificate', 'masterclass', 'learn online', 'bootcamp', 'learn new skill'],
+  travel: ['travel', 'flight deals', 'hotel deals', 'vacation', 'cheap flights', 'book now', 'travel package'],
+  gambling: ['casino', 'slots', 'bet', 'poker', 'jackpot', 'free spins', 'bonus', 'sportsbook', 'win real money', 'online casino'],
   other: [],
 };
 
-// Для кнопки "Все" (allVerticalsMode) берём по ДВА слова из каждой ниши (было одно — слишком
-// мало креативов) — полный список по всем нишам сразу (под полсотни параллельных запросов)
-// долго и подозрительно для Facebook, а два слова на нишу — разумный баланс объёма и скорости.
-// Для КОНКРЕТНОЙ выбранной вертикали используется полный список выше (VERTICAL_SEED_KEYWORDS).
+// Для кнопки "Все" (allVerticalsMode) берём по ТРИ слова из каждой ниши (было два — всё ещё
+// мало) — полный список по всем нишам сразу (сотня с лишним параллельных запросов) долго и
+// подозрительно для Facebook, а три слова на нишу — разумный баланс объёма и скорости (~27
+// параллельных запросов). Для КОНКРЕТНОЙ выбранной вертикали используется полный список выше
+// (VERTICAL_SEED_KEYWORDS, теперь 7-10 слов на нишу вместо 4-8 — тоже расширили для объёма).
 const ALL_VERTICALS_SEED_KEYWORDS = Object.values(VERTICAL_SEED_KEYWORDS)
-  .flatMap((list) => list.slice(0, 2))
+  .flatMap((list) => list.slice(0, 3))
   .filter(Boolean);
 
 // Поиск объявлений: по ключевому слову и/или по конкретной fan page.
