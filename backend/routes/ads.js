@@ -9,6 +9,30 @@ const router = express.Router();
 const FB_GRAPH_VERSION = 'v21.0';
 const FB_BASE_URL = `https://graph.facebook.com/${FB_GRAPH_VERSION}/ads_archive`;
 
+// ВАЖНО: Meta НЕ публикует реальные показы/бюджет для обычной коммерческой рекламы (это есть
+// только у политической/социальной рекламы в некоторых странах) — значит ни "показы", ни
+// "затраты" ниже НЕ настоящие цифры Facebook, это прикидка поверх того, что у нас реально есть
+// (running_days). Формула полностью прозрачна и приходит в ответе вместе с результатом:
+//   показы (оценка) = running_days × показовВДеньНаКрео (параметр, задаёт сам пользователь)
+//   затраты (оценка) = показы / 1000 × CPM_гео (ориентировочный бенчмарк по стране, ниже)
+// CPM — грубые общерыночные ориентиры (USD за 1000 показов Facebook/Instagram) по тир-группам
+// стран, не live-данные биржи. Это калькулятор "на глаз", а не факт — так и подписываем в UI.
+const CPM_TIER_1 = ['US', 'CA', 'GB', 'AU', 'NZ', 'CH', 'NO', 'DK', 'SE', 'NL', 'DE', 'FR', 'IE', 'SG', 'AE', 'QA', 'KW', 'BE', 'AT', 'FI', 'IS', 'LU'];
+const CPM_TIER_2 = ['ES', 'IT', 'PT', 'CZ', 'SK', 'HU', 'PL', 'GR', 'HR', 'SI', 'CY', 'MT', 'IL', 'JP', 'KR', 'HK', 'TW', 'SA', 'BH', 'OM', 'JO', 'LB'];
+const CPM_TIER_3 = ['RO', 'BG', 'RS', 'AL', 'BA', 'MK', 'ME', 'LT', 'LV', 'EE', 'UA', 'MD', 'GE', 'AM', 'AZ', 'TR', 'MX', 'BR', 'AR', 'CL', 'ZA', 'CR', 'PA', 'UY'];
+const CPM_BY_COUNTRY = {};
+CPM_TIER_1.forEach((c) => { CPM_BY_COUNTRY[c] = 10; });
+CPM_TIER_2.forEach((c) => { CPM_BY_COUNTRY[c] = 5; });
+CPM_TIER_3.forEach((c) => { CPM_BY_COUNTRY[c] = 2.5; });
+const CPM_DEFAULT = 1.2; // всё, что не попало в тиры выше (остальная Азия, Африка, Латам, СНГ и т.п.)
+
+function cpmForCountries(countries) {
+  const list = (countries || []).filter((c) => c && c !== 'ALL');
+  if (list.length === 0) return CPM_DEFAULT; // 'ALL' / не выбрано — усреднённый мировой ориентир
+  const values = list.map((c) => CPM_BY_COUNTRY[c] ?? CPM_DEFAULT);
+  return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100;
+}
+
 // Строит ссылку на тот же поиск на настоящей публичной странице facebook.com/ads/library,
 // чтобы можно было одной кнопкой открыть и сверить результат в оригинальном интерфейсе Facebook.
 // У самой страницы нет мульти-слов через OR, поэтому для фан-аута по нескольким анкорным словам
@@ -141,7 +165,12 @@ const ALL_VERTICALS_SEED_KEYWORDS = Object.values(VERTICAL_SEED_KEYWORDS)
 // получить вперемешку объявления разных ниш — сделать несколько параллельных запросов).
 router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) => {
   try {
-  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo, allVerticals, mediaType } = req.query;
+  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo, allVerticals, mediaType, dailyImpressions } = req.query;
+
+  // Пользовательское предположение "сколько показов в день делает один активный крео" —
+  // единственный по-настоящему свободный параметр оценки показов/бюджета (см. комментарий
+  // у CPM_BY_COUNTRY выше). Без него оценивать нечего, поэтому дефолт разумный, но условный.
+  const dailyImpressionsPerAd = Math.min(Math.max(parseInt(dailyImpressions, 10) || 1000, 10), 100000);
 
   const keyword = (q || '').trim();
   const pageQuery = (page || '').trim();
@@ -256,6 +285,7 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     });
   }
 
+  const cpmUsed = cpmForCountries(countryList);
   const now = new Date().toISOString();
   const results = [];
   for (const ad of rawAds) {
@@ -271,6 +301,16 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
 
     const cachedRes = await db.query('SELECT first_tracked_at, times_seen FROM ad_cache WHERE fb_ad_id = $1', [ad.id]);
     const cached = cachedRes.rows[0];
+
+    // Оценка показов/бюджета — см. большой комментарий у CPM_BY_COUNTRY выше: это НЕ данные
+    // Facebook (их у Meta просто нет для обычной рекламы), а калькулятор поверх running_days,
+    // предположения о показах/день (dailyImpressionsPerAd, задаёт пользователь) и CPM по гео.
+    const runningDaysForEstimate = Math.max(
+      daysBetween(ad.ad_creation_time || ad.ad_delivery_start_time, ad.ad_delivery_stop_time) || 1,
+      1
+    );
+    const estimatedImpressions = Math.round(runningDaysForEstimate * dailyImpressionsPerAd);
+    const estimatedSpendUsd = Math.round((estimatedImpressions / 1000) * cpmUsed * 100) / 100;
 
     results.push({
       id: ad.id,
@@ -291,6 +331,8 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
       running_days: daysBetween(ad.ad_creation_time || ad.ad_delivery_start_time, ad.ad_delivery_stop_time),
       first_tracked_by_us_at: cached?.first_tracked_at || now,
       times_seen_by_us: cached?.times_seen || 1,
+      estimated_impressions: estimatedImpressions,
+      estimated_spend_usd: estimatedSpendUsd,
     });
   }
 
@@ -320,6 +362,13 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
       active,
       mediaType,
     }),
+    // Эти числа — НЕ данные Facebook (Meta их просто не публикует для обычной рекламы).
+    // Формула: показы = running_days × daily_impressions_per_ad; затраты = показы/1000 × cpm_usd.
+    estimate_assumptions: {
+      daily_impressions_per_ad: dailyImpressionsPerAd,
+      cpm_usd: cpmUsed,
+      disclaimer: 'Показы и бюджет — приблизительная прикидка (running_days × показы/день × CPM по гео), а не официальные данные Facebook: Meta не публикует реальные показы/бюджет для обычной коммерческой рекламы.',
+    },
     note: 'Данные берутся с публичной страницы facebook.com/ads/library. Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы — running_days и число активных креативов у страницы остаются лучшей доступной оценкой объёма.'
       + (allVerticalsMode ? ' Показан срез сразу по нескольким типовым нишам (без привязки к одной вертикали) — не весь архив Facebook, а обзор.' : '')
       + (verticalSeeds ? ` Для вертикали использован набор из ${verticalSeeds.length} анкорных слов (${verticalSeeds.join(', ')}), а не одно слово — так находится заметно больше креативов.` : '')

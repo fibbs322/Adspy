@@ -586,6 +586,27 @@ function updateStat(id, value) {
   if (el) el.textContent = value;
 }
 
+// Компактное форматирование чисел для карточки (1200 -> "1.2K", 2500000 -> "2.5M").
+function formatCompactNumber(n) {
+  if (n == null) return '—';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(n);
+}
+
+// Строка "👁 ~12.3K показов · 💰 ~$45 (оценка)" для карточки/превью. Это НЕ данные Facebook —
+// Meta не публикует показы/бюджет для обычной рекламы, см. backend/routes/ads.js. Поэтому
+// явно подписываем "оценка" и даём title с формулой, а не выдаём это за официальные цифры.
+function estimateHtml(ad) {
+  if (ad.estimated_impressions == null) return '';
+  const tooltip = 'Прикидка, не данные Facebook: running_days × показов/день (задано в фильтре) × CPM по гео';
+  return `<div class="estimate-row" title="${escapeHtml(tooltip)}">
+    <span>👁 ~${formatCompactNumber(ad.estimated_impressions)} показов</span>
+    <span>💰 ~$${ad.estimated_spend_usd != null ? formatCompactNumber(ad.estimated_spend_usd) : '—'}</span>
+    <span class="estimate-tag">оценка</span>
+  </div>`;
+}
+
 function thumbHtml(ad) {
   if (ad.media_type === 'video' && (ad.video_url || ad.thumbnail_url)) {
     const poster = ad.thumbnail_url ? ` poster="${escapeHtml(ad.thumbnail_url)}"` : '';
@@ -643,6 +664,7 @@ function renderAds(payload) {
         <span>Запуск: ${formatDate(ad.launch_date)}</span>
         <span class="running-days">${ad.running_days != null ? ad.running_days + ' дн.' : '—'}</span>
       </div>
+      ${estimateHtml(ad)}
       <div class="status-row">
         <span class="status-pill ${ad.is_active ? 'active' : 'stopped'}">${ad.is_active ? '🟢 Активна' : '⏹ Остановлена'}</span>
         <span>${ad.stop_date ? 'до ' + formatDate(ad.stop_date) : ''}</span>
@@ -742,6 +764,7 @@ function openPreview(ad) {
       <span>Запуск: ${formatDate(ad.launch_date)}</span>
       <span class="running-days">${ad.running_days != null ? ad.running_days + ' дн.' : '—'}</span>
     </div>
+    ${estimateHtml(ad)}
     <div class="status-row" style="margin-bottom:10px">
       <span class="status-pill ${ad.is_active ? 'active' : 'stopped'}">${ad.is_active ? '🟢 Активна' : '⏹ Остановлена'}</span>
       <span>${ad.stop_date ? 'Остановлена: ' + formatDate(ad.stop_date) : ''}</span>
@@ -758,7 +781,7 @@ function openPreview(ad) {
   const pageBtn = document.getElementById('preview-page-btn');
   if (pageBtn) {
     pageBtn.addEventListener('click', () => {
-      document.getElementById('preview-modal').classList.add('hidden');
+      closePreview();
       searchByPage(ad.page_id, ad.page_name);
     });
   }
@@ -770,11 +793,24 @@ function openPreview(ad) {
   }
   document.getElementById('preview-modal').classList.remove('hidden');
 }
-document.getElementById('preview-close').addEventListener('click', () => {
-  document.getElementById('preview-modal').classList.add('hidden');
-});
+// Закрытие превью не только прячет модалку, но и останавливает видео внутри неё — иначе
+// звук/воспроизведение продолжались фоном после закрытия (видео же не удалялось из DOM).
+function closePreview() {
+  const modal = document.getElementById('preview-modal');
+  modal.querySelectorAll('video').forEach((v) => {
+    v.pause();
+    v.currentTime = 0;
+  });
+  modal.classList.add('hidden');
+}
+document.getElementById('preview-close').addEventListener('click', closePreview);
 document.getElementById('preview-modal').addEventListener('click', (e) => {
-  if (e.target.id === 'preview-modal') e.target.classList.add('hidden');
+  if (e.target.id === 'preview-modal') closePreview();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !document.getElementById('preview-modal').classList.contains('hidden')) {
+    closePreview();
+  }
 });
 
 let lastQuery = null;
@@ -839,7 +875,8 @@ searchForm.addEventListener('submit', async (e) => {
   const sort = document.getElementById('search-sort').value;
   const mediaTypeInput = document.querySelector('input[name="media-type"]:checked');
   const mediaType = mediaTypeInput ? mediaTypeInput.value : 'all';
-  lastQuery = { q, page, countries: [...selectedCountries], active, vertical: activeVertical, dateFrom, dateTo, sort, allVerticals: usedAllVerticals, mediaType };
+  const dailyImpressions = parseInt(document.getElementById('search-daily-impressions').value, 10) || 1000;
+  lastQuery = { q, page, countries: [...selectedCountries], active, vertical: activeVertical, dateFrom, dateTo, sort, allVerticals: usedAllVerticals, mediaType, dailyImpressions };
 
   resultsEl.innerHTML = '<div class="empty-state">Ищем…</div>';
   try {
@@ -938,6 +975,7 @@ function applyQueryToForm(qp) {
   document.getElementById('search-active').checked = qp.active;
   const mediaRadio = document.querySelector(`input[name="media-type"][value="${qp.mediaType || 'all'}"]`);
   if (mediaRadio) mediaRadio.checked = true;
+  document.getElementById('search-daily-impressions').value = qp.dailyImpressions || 1000;
   activeVertical = qp.vertical || null;
   renderVerticalPickers();
 }

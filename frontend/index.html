@@ -116,6 +116,10 @@
           <label><input type="radio" name="media-type" value="video" /> Видео</label>
         </div>
 
+        <h3 class="filter-title">Показов/день на 1 крео (для оценки бюджета)</h3>
+        <input type="number" id="search-daily-impressions" class="filter-input" value="1000" min="0" max="100000" step="100" />
+        <p class="field-hint">У Facebook нет реальных показов/бюджета для обычной рекламы — это твоё предположение, по нему мы считаем прикидку показов и затрат (× CPM по гео) на каждой карточке. Поставь своё число — точнее знаешь рынок, точнее прикидка.</p>
+
         <button type="submit" class="btn-primary">🔎 Найти креативы</button>
         <button type="button" id="save-search-btn" class="btn-secondary">💾 Сохранить поиск</button>
         <p class="error" id="search-form-error"></p>

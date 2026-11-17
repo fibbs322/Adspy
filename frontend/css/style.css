@@ -461,6 +461,23 @@ select.filter-input { cursor: pointer; }
   width: fit-content;
 }
 .creative-card .running-days { color: var(--accent-2); font-weight: 600; }
+.estimate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: help;
+}
+.estimate-tag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  background: rgba(255,255,255,0.08);
+  padding: 1px 6px;
+  border-radius: 999px;
+  opacity: .8;
+}
 .creative-card .status-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
 .status-pill { padding: 2px 8px; border-radius: 999px; font-weight: 600; }
 .status-pill.active { background: rgba(78,203,143,.15); color: var(--accent-2); }

@@ -62,7 +62,7 @@ const API = {
     return this.request(`/admin/users/${id}/access`, { method: 'POST', body: { active } });
   },
 
-  searchAds({ q, countries, active, vertical, page, dateFrom, dateTo, allVerticals, mediaType }) {
+  searchAds({ q, countries, active, vertical, page, dateFrom, dateTo, allVerticals, mediaType, dailyImpressions }) {
     const params = new URLSearchParams({ active });
     if (q) params.set('q', q);
     if (page) params.set('page', page);
@@ -72,6 +72,7 @@ const API = {
     if (dateTo) params.set('dateTo', dateTo);
     if (allVerticals) params.set('allVerticals', '1');
     if (mediaType && mediaType !== 'all') params.set('mediaType', mediaType);
+    if (dailyImpressions) params.set('dailyImpressions', dailyImpressions);
     // Путь намеренно /creatives, а не /ads — см. комментарий в backend/server.js:
     // блокировщики рекламы режут любой "/ads/" в адресе запроса по умолчанию.
     return this.request(`/creatives/search?${params.toString()}`);
