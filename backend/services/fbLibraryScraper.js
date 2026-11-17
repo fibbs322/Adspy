@@ -259,22 +259,71 @@ async function scrapeOnce({ country, keyword, pageId, activeStatus, mediaType },
   return { ads, count: connection.count || ads.length, captchaRequired: false, blocked: false };
 }
 
+// Максимум сколько комбинаций (страна × слово) реально отправляем в одном поиске.
+// Инцидент 18.11: выбрали регион "Европа" (35 стран) + вертикаль "Гемблинг" (84 слова)
+// => 2940 комбинаций разом. Promise.allSettled запускает их ВСЕ одновременно, и даже
+// с неблокирующим fetch разбор каждого большого HTML-ответа FB (регэксп + JSON.parse в
+// extractSearchResults) — синхронный, CPU-bound код на единственном потоке event loop.
+// Тысячи таких разборов почти одновременно забивают единственный поток под завязку —
+// сервис перестаёт отвечать вообще на всё (включая /api/config), не только на поиск.
+// Фикс в два слоя: (1) жёсткий потолок на число комбинаций — лишние слова обрезаются,
+// а не страны (явный выбор стран — осознанное решение пользователя, слова — подставлены
+// автоматически под капотом, их и урезаем); (2) ограничение параллелизма (runWithLimit
+// ниже), чтобы даже в рамках потолка не улетало больше нескольких запросов разом.
+// 150 — с запасом выше уже проверенных в проде безопасных случаев (84 слова × 1 страна
+// = 84 комбинации отработали быстро и без проблем), но далеко ниже того, что реально
+// положило сервис (2940). Для 1-2 стран это не обрезает список слов вообще.
+const MAX_FANOUT_COMBINATIONS = 150;
+const SCRAPE_CONCURRENCY = 8;
+
+// Простой пул воркеров без внешних зависимостей (p-limit и т.п.): берёт задачи по
+// очереди, не больше `limit` одновременно — в отличие от Promise.allSettled(tasks),
+// который стартует все задачи в тот же тик.
+async function runWithLimit(taskFns, limit) {
+  const results = new Array(taskFns.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < taskFns.length) {
+      const i = nextIndex++;
+      try {
+        results[i] = { status: 'fulfilled', value: await taskFns[i]() };
+      } catch (err) {
+        results[i] = { status: 'rejected', reason: err };
+      }
+    }
+  }
+  const workerCount = Math.max(1, Math.min(limit, taskFns.length));
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
 // Поиск по нескольким странам и/или нескольким ключевым словам (для режима
 // "Все вертикали") одним вызовом, с объединением и удалением дублей по id.
 async function scrapeAdLibrary({ countries, keywords, pageId, activeStatus, mediaType }) {
   const countryList = (countries && countries.length ? countries : ['ALL']);
   // Поиск "все объявления этой страницы" (pageId) — отдельный режим, не комбинируется
   // с перебором ключевых слов: он одним запросом возвращает все креативы страницы.
-  const keywordList = pageId ? [null] : (keywords && keywords.length ? keywords : [null]);
+  let keywordList = pageId ? [null] : (keywords && keywords.length ? keywords : [null]);
 
-  const tasks = [];
-  for (const country of countryList) {
-    for (const keyword of keywordList) {
-      tasks.push(scrapeOnce({ country, keyword, pageId, activeStatus, mediaType }));
+  // Если комбинаций больше потолка — обрезаем именно список слов (см. комментарий выше
+  // про MAX_FANOUT_COMBINATIONS), стран не трогаем.
+  let fanoutTrimmed = false;
+  if (!pageId && countryList.length * keywordList.length > MAX_FANOUT_COMBINATIONS) {
+    const maxKeywords = Math.max(1, Math.floor(MAX_FANOUT_COMBINATIONS / countryList.length));
+    if (keywordList.length > maxKeywords) {
+      keywordList = keywordList.slice(0, maxKeywords);
+      fanoutTrimmed = true;
     }
   }
 
-  const settled = await Promise.allSettled(tasks);
+  const taskFns = [];
+  for (const country of countryList) {
+    for (const keyword of keywordList) {
+      taskFns.push(() => scrapeOnce({ country, keyword, pageId, activeStatus, mediaType }));
+    }
+  }
+
+  const settled = await runWithLimit(taskFns, SCRAPE_CONCURRENCY);
   const seen = new Set();
   const ads = [];
   let anyCaptcha = false;
@@ -309,6 +358,8 @@ async function scrapeAdLibrary({ countries, keywords, pageId, activeStatus, medi
     rejection: firstRejection,
     captchaRequired: anyCaptcha,
     blocked: !anySuccess && (anyBlocked || anyCaptcha),
+    fanoutTrimmed,
+    keywordsUsedCount: keywordList.length,
   };
 }
 
