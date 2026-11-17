@@ -149,11 +149,9 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     });
   }
   if (scrapeResult.blocked) {
+    console.error('FB Ad Library scrape blocked:', JSON.stringify(scrapeResult.debug || scrapeResult.rejection));
     return res.status(502).json({
       error: 'Facebook не отдал данные Библиотеки рекламы (возможно, изменилась вёрстка страницы или временная блокировка). Попробуй ещё раз чуть позже.',
-      // TODO: убрать debug после диагностики — временно, чтобы понять, что именно блокирует Facebook с серверного IP.
-      debug: scrapeResult.debug,
-      rejection: scrapeResult.rejection,
     });
   }
 
