@@ -359,8 +359,15 @@ select.filter-input { cursor: pointer; }
 
 .main { flex: 1; padding: 24px; overflow-y: auto; }
 
-.search-meta { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-.search-meta .fb-note { font-size: 11px; opacity: .7; }
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.search-meta { color: var(--text-dim); font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 0; }
+.sort-select { flex-shrink: 0; width: auto; max-width: 220px; }
 
 .results-grid {
   display: grid;

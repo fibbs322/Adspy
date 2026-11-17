@@ -622,7 +622,6 @@ function renderAds(payload) {
     ${payload.multi_keywords_used ? ` Искали по любому из слов: «${escapeHtml(payload.multi_keywords_used.join(', '))}».` : ''}
     ${payload.all_verticals_used ? ' Слово не вводили — показан срез сразу по всем нишам (без привязки к одной вертикали).' : ''}
     ${payload.fb_library_url ? ` <a href="${escapeHtml(payload.fb_library_url)}" target="_blank" rel="noopener" class="fb-lib-link">Открыть в FB Ad Library ↗</a>` : ''}</span>
-    <span class="fb-note">${escapeHtml(payload.note || '')}</span>
   `;
   const backBtn = document.getElementById('back-to-search-btn');
   if (backBtn) backBtn.addEventListener('click', goBackToPreviousSearch);

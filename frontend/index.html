@@ -116,14 +116,6 @@
           <label><input type="radio" name="media-type" value="video" /> Видео</label>
         </div>
 
-        <h3 class="filter-title">Сортировка</h3>
-        <select id="search-sort" class="filter-input">
-          <option value="date_desc">Сначала новые</option>
-          <option value="date_asc">Сначала старые</option>
-          <option value="running_desc">Дольше всего активны</option>
-          <option value="volume_desc">По объёму рекламодателя</option>
-        </select>
-
         <button type="submit" class="btn-primary">🔎 Найти креативы</button>
         <button type="button" id="save-search-btn" class="btn-secondary">💾 Сохранить поиск</button>
         <p class="error" id="search-form-error"></p>
@@ -142,7 +134,15 @@
     </aside>
 
     <main class="main">
-      <div id="search-meta" class="search-meta"></div>
+      <div class="results-header">
+        <div id="search-meta" class="search-meta"></div>
+        <select id="search-sort" class="filter-input sort-select">
+          <option value="date_desc">Сначала новые</option>
+          <option value="date_asc">Сначала старые</option>
+          <option value="running_desc">Дольше всего активны</option>
+          <option value="volume_desc">По объёму рекламодателя</option>
+        </select>
+      </div>
       <div id="results" class="results-grid"></div>
     </main>
   </section>
