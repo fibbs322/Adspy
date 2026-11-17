@@ -1,0 +1,59 @@
+// Простой клиент к нашему backend API.
+const API = {
+  base: '/api',
+
+  getToken() {
+    return localStorage.getItem('adspy_token');
+  },
+  setToken(t) {
+    localStorage.setItem('adspy_token', t);
+  },
+  clearToken() {
+    localStorage.removeItem('adspy_token');
+  },
+
+  async request(path, { method = 'GET', body } = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = this.getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(this.base + path, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+
+    if (!res.ok) {
+      const err = new Error((data && data.error) || `Ошибка запроса (${res.status})`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  },
+
+  register(email, password) {
+    return this.request('/auth/register', { method: 'POST', body: { email, password } });
+  },
+  login(email, password) {
+    return this.request('/auth/login', { method: 'POST', body: { email, password } });
+  },
+
+  searchAds({ q, country, active }) {
+    const params = new URLSearchParams({ q, country, active });
+    return this.request(`/ads/search?${params.toString()}`);
+  },
+
+  getSavedSearches() { return this.request('/ads/saved-searches'); },
+  saveSearch(label, query_params) {
+    return this.request('/ads/saved-searches', { method: 'POST', body: { label, query_params } });
+  },
+  deleteSavedSearch(id) { return this.request(`/ads/saved-searches/${id}`, { method: 'DELETE' }); },
+
+  getFavorites() { return this.request('/ads/favorites'); },
+  addFavorite(payload) { return this.request('/ads/favorites', { method: 'POST', body: payload }); },
+  removeFavorite(fbAdId) { return this.request(`/ads/favorites/${fbAdId}`, { method: 'DELETE' }); },
+};

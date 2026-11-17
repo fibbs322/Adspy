@@ -1,0 +1,6 @@
+node_modules/
+.env
+db/adspy.db
+db/adspy.db-wal
+db/adspy.db-shm
+*.log
