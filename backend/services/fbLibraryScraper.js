@@ -145,7 +145,14 @@ async function scrapeOnce({ country, keyword, activeStatus }) {
   applySetCookie(res.headers.raw ? res.headers.raw()['set-cookie'] : res.headers.get('set-cookie'));
 
   if (!res.ok) {
-    return { ads: [], count: 0, blocked: true, status: res.status };
+    let bodySnippet = '';
+    try { bodySnippet = (await res.text()).slice(0, 800); } catch (_) {}
+    return {
+      ads: [],
+      count: 0,
+      blocked: true,
+      debug: { status: res.status, statusText: res.statusText, bodySnippet, requestUrl: url },
+    };
   }
 
   const html = await res.text();
@@ -161,7 +168,7 @@ async function scrapeOnce({ country, keyword, activeStatus }) {
       count: 0,
       blocked: true,
       reason: 'no_data_block_found',
-      debug: { status: res.status, htmlLength: html.length, htmlSnippet: html.slice(0, 800) },
+      debug: { status: res.status, htmlLength: html.length, htmlSnippet: html.slice(0, 800), requestUrl: url },
     };
   }
 
