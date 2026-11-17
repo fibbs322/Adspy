@@ -156,7 +156,13 @@ async function scrapeOnce({ country, keyword, activeStatus }) {
 
   const connection = extractSearchResults(html);
   if (!connection) {
-    return { ads: [], count: 0, blocked: true, reason: 'no_data_block_found' };
+    return {
+      ads: [],
+      count: 0,
+      blocked: true,
+      reason: 'no_data_block_found',
+      debug: { status: res.status, htmlLength: html.length, htmlSnippet: html.slice(0, 800) },
+    };
   }
 
   const ads = [];
@@ -191,12 +197,18 @@ async function scrapeAdLibrary({ countries, keywords, activeStatus }) {
   let anyBlocked = false;
   let anySuccess = false;
   let totalCount = 0;
+  let firstDebug = null;
+  let firstRejection = null;
 
   for (const result of settled) {
-    if (result.status !== 'fulfilled') continue;
+    if (result.status !== 'fulfilled') {
+      if (!firstRejection) firstRejection = String(result.reason && result.reason.message || result.reason);
+      continue;
+    }
     const value = result.value;
     if (value.captchaRequired) anyCaptcha = true;
     if (value.blocked) anyBlocked = true;
+    if (value.debug && !firstDebug) firstDebug = value.debug;
     if (!value.blocked && !value.captchaRequired) anySuccess = true;
     totalCount += value.count || 0;
     for (const ad of value.ads) {
@@ -209,6 +221,8 @@ async function scrapeAdLibrary({ countries, keywords, activeStatus }) {
   return {
     ads,
     count: totalCount,
+    debug: firstDebug,
+    rejection: firstRejection,
     captchaRequired: anyCaptcha,
     blocked: !anySuccess && (anyBlocked || anyCaptcha),
   };
