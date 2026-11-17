@@ -133,20 +133,56 @@ function mapNode(node) {
   };
 }
 
+function setCookieFromResponse(res) {
+  applySetCookie(res.headers.raw ? res.headers.raw()['set-cookie'] : res.headers.get('set-cookie'));
+}
+
+// Facebook отдаёт серверным (дата-центровым) запросам без исполнения JS не 403 "доступ
+// запрещён", а лёгкую анти-бот проверку — HTML-страницу с инлайн-скриптом, который делает
+// один POST на одноразовый эндпоинт вида /__rd_verify_...?challenge=N, после чего обычный
+// браузер перезагружает страницу и получает настоящий контент. Это не капча — конкретно
+// эта проверка не требует решать ничего, просто "исполни JS хотя бы один раз", так что мы
+// можем пройти её напрямую: распарсить URL из тела ответа, сходить туда POST-ом (это выдаёт
+// нужный cookie), и повторить исходный запрос.
+function extractChallengeUrl(html) {
+  const match = html.match(/fetch\('(\/__rd_verify[^']+)'/);
+  return match ? match[1] : null;
+}
+
+async function solveClientChallenge(challengePath, refererUrl) {
+  const url = `https://www.facebook.com${challengePath}`;
+  const headers = { ...BROWSER_HEADERS, Referer: refererUrl, Origin: 'https://www.facebook.com' };
+  const cookies = cookieHeader();
+  if (cookies) headers['Cookie'] = cookies;
+  const res = await fetch(url, { method: 'POST', headers });
+  setCookieFromResponse(res);
+  try { await res.text(); } catch (_) {}
+  return res.ok;
+}
+
 // Выполняет один поисковый запрос к публичной библиотеке.
 // Возвращает { ads, count, captchaRequired, blocked }.
-async function scrapeOnce({ country, keyword, activeStatus }) {
+async function scrapeOnce({ country, keyword, activeStatus }, attempt = 0) {
   const url = buildUrl({ country, keyword, activeStatus });
   const headers = { ...BROWSER_HEADERS };
   const cookies = cookieHeader();
   if (cookies) headers['Cookie'] = cookies;
 
   const res = await fetch(url, { headers });
-  applySetCookie(res.headers.raw ? res.headers.raw()['set-cookie'] : res.headers.get('set-cookie'));
+  setCookieFromResponse(res);
 
   if (!res.ok) {
     let bodySnippet = '';
-    try { bodySnippet = (await res.text()).slice(0, 800); } catch (_) {}
+    try { bodySnippet = (await res.text()).slice(0, 1500); } catch (_) {}
+
+    if (res.status === 403 && attempt === 0) {
+      const challengePath = extractChallengeUrl(bodySnippet);
+      if (challengePath) {
+        const solved = await solveClientChallenge(challengePath, url);
+        if (solved) return scrapeOnce({ country, keyword, activeStatus }, attempt + 1);
+      }
+    }
+
     return {
       ads: [],
       count: 0,
