@@ -72,16 +72,18 @@ const API = {
     if (dateTo) params.set('dateTo', dateTo);
     if (allVerticals) params.set('allVerticals', '1');
     if (mediaType && mediaType !== 'all') params.set('mediaType', mediaType);
-    return this.request(`/ads/search?${params.toString()}`);
+    // Путь намеренно /creatives, а не /ads — см. комментарий в backend/server.js:
+    // блокировщики рекламы режут любой "/ads/" в адресе запроса по умолчанию.
+    return this.request(`/creatives/search?${params.toString()}`);
   },
 
-  getSavedSearches() { return this.request('/ads/saved-searches'); },
+  getSavedSearches() { return this.request('/creatives/saved-searches'); },
   saveSearch(label, query_params) {
-    return this.request('/ads/saved-searches', { method: 'POST', body: { label, query_params } });
+    return this.request('/creatives/saved-searches', { method: 'POST', body: { label, query_params } });
   },
-  deleteSavedSearch(id) { return this.request(`/ads/saved-searches/${id}`, { method: 'DELETE' }); },
+  deleteSavedSearch(id) { return this.request(`/creatives/saved-searches/${id}`, { method: 'DELETE' }); },
 
-  getFavorites() { return this.request('/ads/favorites'); },
-  addFavorite(payload) { return this.request('/ads/favorites', { method: 'POST', body: payload }); },
-  removeFavorite(fbAdId) { return this.request(`/ads/favorites/${fbAdId}`, { method: 'DELETE' }); },
+  getFavorites() { return this.request('/creatives/favorites'); },
+  addFavorite(payload) { return this.request('/creatives/favorites', { method: 'POST', body: payload }); },
+  removeFavorite(fbAdId) { return this.request(`/creatives/favorites/${fbAdId}`, { method: 'DELETE' }); },
 };

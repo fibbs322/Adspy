@@ -19,7 +19,11 @@ const limiter = rateLimit({ windowMs: 60 * 1000, max: 60 });
 app.use('/api', limiter);
 
 app.use('/api/auth', authRoutes);
-app.use('/api/ads', adsRoutes);
+// Путь специально НЕ /api/ads — классические списки блокировщиков рекламы (EasyList и т.п.)
+// по умолчанию режут любой URL с "/ads/" в пути, не разбирая, чей это сайт. Из-за этого наш
+// же собственный поиск падал с "Failed to fetch" у людей с обычным uBlock/AdBlock без
+// доп. настройки — тот же JS, тот же бэкенд, просто другое слово в адресе.
+app.use('/api/creatives', adsRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
