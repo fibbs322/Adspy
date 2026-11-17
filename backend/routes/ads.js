@@ -206,6 +206,10 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
   } else {
     keywordsForScrape = [keyword];
   }
+  // В ветке "числовой page_id" keywordsForScrape осознанно остаётся не задан (поиск идёт по
+  // view_all_page_id, слова не нужны) — но дальше по коду на него не раз ссылаются как на
+  // массив, поэтому фиксируем пустым массивом, а не undefined (иначе .length ниже падал с 500).
+  keywordsForScrape = keywordsForScrape || [];
   const multiKeywordMode = keywordsForScrape.length > 1 && !verticalSeeds && !allVerticalsMode && keyword.includes(',');
 
   let scrapeResult;
