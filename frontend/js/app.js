@@ -294,8 +294,17 @@ function showDashboard() {
   loadFavorites();
   // Сразу показываем какие-то креативы при входе, без ручного нажатия "Найти" —
   // по умолчанию вертикаль "Все" уже выбрана, этого достаточно для первого запроса.
+  // Если открыли по ссылке "↗ в новой вкладке" (?page=...&pageName=...) — сразу ищем
+  // креативы именно этой страницы, а не дефолтный срез по всем нишам.
   initCurrentUser().then((hasAccess) => {
-    if (hasAccess && !lastResults) searchForm.requestSubmit();
+    if (!hasAccess || lastResults) return;
+    const params = new URLSearchParams(window.location.search);
+    const pageParam = params.get('page');
+    if (pageParam) {
+      searchByPage(pageParam, params.get('pageName') || '');
+    } else {
+      searchForm.requestSubmit();
+    }
   });
 }
 
@@ -473,12 +482,18 @@ function renderAds(payload) {
 
   const vInfo = activeVertical ? verticalInfo(activeVertical) : null;
 
+  const showBackBtn = Boolean(previousQuery) && Boolean(lastQuery && lastQuery.page);
+
   searchMetaEl.innerHTML = `
-    <span>Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.
+    <span>
+      ${showBackBtn ? '<button type="button" id="back-to-search-btn" class="btn-back">← Назад к поиску</button>' : ''}
+      Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.
     ${payload.seed_keyword_used ? ` Слово не вводили — Facebook искал по типовому слову «${escapeHtml(payload.q_used || '')}» для вертикали «${vInfo ? vInfo.label : ''}».` : ''}
     ${payload.all_verticals_used ? ' Слово не вводили — показан срез сразу по всем нишам (без привязки к одной вертикали).' : ''}</span>
     <span class="fb-note">${escapeHtml(payload.note || '')}</span>
   `;
+  const backBtn = document.getElementById('back-to-search-btn');
+  if (backBtn) backBtn.addEventListener('click', goBackToPreviousSearch);
 
   resultsEl.innerHTML = ads.map((ad) => `
     <div class="ad-card" data-ad='${escapeHtml(JSON.stringify(ad))}'>
@@ -487,7 +502,10 @@ function renderAds(payload) {
         ${vInfo ? `<span class="v-badge" style="background:${vInfo.color}">${vInfo.label}</span>` : '<span></span>'}
         <div class="platforms">${(ad.platforms || []).slice(0, 3).map((p) => `<span>${escapeHtml(p)}</span>`).join('')}</div>
       </div>
-      <button type="button" class="page-link" title="Показать все найденные креативы этой страницы">${escapeHtml(ad.page_name || 'Без названия')}</button>
+      <div class="page-name-row">
+        <button type="button" class="page-link" title="Показать все найденные креативы этой страницы">${escapeHtml(ad.page_name || 'Без названия')}</button>
+        ${ad.page_id ? `<button type="button" class="page-link-newtab" title="Открыть все креативы этой страницы в новой вкладке">↗</button>` : ''}
+      </div>
       <div class="badge">Креативов у страницы (в этой выдаче): ${volume_by_page[ad.page_name || ad.page_id] || 1}</div>
       <div class="creative-text">${escapeHtml(ad.creative_text || ad.link_title || 'Текст креатива недоступен')}</div>
       <div class="meta-row">
@@ -512,6 +530,14 @@ function renderAds(payload) {
       const ad = JSON.parse(card.dataset.ad);
       if (!ad.page_id) { alert('У этого объявления нет ID страницы от Facebook.'); return; }
       searchByPage(ad.page_id, ad.page_name);
+    });
+  });
+
+  resultsEl.querySelectorAll('.page-link-newtab').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const card = e.target.closest('.ad-card');
+      const ad = JSON.parse(card.dataset.ad);
+      searchByPage(ad.page_id, ad.page_name, { newTab: true });
     });
   });
 
@@ -592,15 +618,23 @@ function openPreview(ad) {
     <div class="platforms">${(ad.platforms || []).map((p) => `<span>${escapeHtml(p)}</span>`).join('')}</div>
     <div class="actions" style="margin-top:14px">
       <a href="${ad.snapshot_url || '#'}" target="_blank" rel="noopener">Открыть оригинал в Facebook</a>
-      <button type="button" id="preview-page-btn">📄 Все креативы этой страницы</button>
+      ${ad.page_id ? `
+        <button type="button" id="preview-page-btn">📄 Все креативы этой страницы</button>
+        <button type="button" id="preview-page-newtab-btn">↗ В новой вкладке</button>
+      ` : ''}
     </div>
   `;
   const pageBtn = document.getElementById('preview-page-btn');
   if (pageBtn) {
     pageBtn.addEventListener('click', () => {
       document.getElementById('preview-modal').classList.add('hidden');
-      if (!ad.page_id) { alert('У этого объявления нет ID страницы от Facebook.'); return; }
       searchByPage(ad.page_id, ad.page_name);
+    });
+  }
+  const pageNewTabBtn = document.getElementById('preview-page-newtab-btn');
+  if (pageNewTabBtn) {
+    pageNewTabBtn.addEventListener('click', () => {
+      searchByPage(ad.page_id, ad.page_name, { newTab: true });
     });
   }
   document.getElementById('preview-modal').classList.remove('hidden');
@@ -614,6 +648,10 @@ document.getElementById('preview-modal').addEventListener('click', (e) => {
 
 let lastQuery = null;
 let lastResults = null;
+// Запоминаем состояние поиска ДО перехода "все креативы этой страницы", чтобы можно
+// было вернуться к нему одной кнопкой, не переcобирая фильтры заново.
+let previousQuery = null;
+let previousResults = null;
 
 function sortAds(ads, volumeByPage, sortMode) {
   const list = [...ads];
@@ -689,12 +727,42 @@ document.getElementById('search-sort').addEventListener('change', () => {
 });
 
 // Клик по названию страницы объявления — показывает все найденные у неё креативы
-// (поиск по search_page_ids вместо ключевого слова).
-function searchByPage(pageId, pageName) {
+// (поиск view_all_page_id вместо ключевого слова). newTab=true открывает это в новой
+// вкладке (по ссылке с ?page=...), ничего не трогая в текущей.
+function searchByPage(pageId, pageName, { newTab = false } = {}) {
+  if (newTab) {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.searchParams.set('page', pageId);
+    if (pageName) url.searchParams.set('pageName', pageName);
+    window.open(url.toString(), '_blank', 'noopener');
+    return;
+  }
+  // Запоминаем, откуда пришли, чтобы кнопка "Назад" могла восстановить этот поиск.
+  if (lastQuery) {
+    previousQuery = { ...lastQuery };
+    previousResults = lastResults;
+  }
   document.getElementById('search-q').value = '';
   document.getElementById('search-page').value = pageId;
   document.getElementById('search-form-error').textContent = '';
   searchForm.requestSubmit();
+}
+
+// Кнопка "Назад к поиску" — восстанавливает состояние формы и результаты, которые были
+// до перехода на "все креативы этой страницы", без повторного похода на сервер.
+function goBackToPreviousSearch() {
+  if (!previousQuery) return;
+  applyQueryToForm(previousQuery);
+  lastQuery = previousQuery;
+  lastResults = previousResults;
+  previousQuery = null;
+  previousResults = null;
+  if (lastResults) {
+    renderAds(lastResults);
+  } else {
+    searchForm.requestSubmit();
+  }
 }
 
 // --- Модалка "Сохранить поиск" (вместо нативного prompt()) ---
@@ -724,6 +792,22 @@ function vDotHtml(verticalId) {
   return v ? `<span class="v-dot" style="background:${v.color}"></span>` : '';
 }
 
+// Заполняет форму полями сохранённого/предыдущего запроса (без самого запроса к API —
+// вызывающий код сам решает, нужно ли сразу искать или просто показать уже готовый результат).
+function applyQueryToForm(qp) {
+  document.getElementById('search-q').value = qp.q || '';
+  document.getElementById('search-page').value = qp.page || '';
+  document.getElementById('search-date-from').value = qp.dateFrom || '';
+  document.getElementById('search-date-to').value = qp.dateTo || '';
+  document.getElementById('search-sort').value = qp.sort || 'date_desc';
+  setSelectedCountries(qp.countries || (qp.country ? [qp.country] : ['US']));
+  document.getElementById('search-active').checked = qp.active;
+  const mediaRadio = document.querySelector(`input[name="media-type"][value="${qp.mediaType || 'all'}"]`);
+  if (mediaRadio) mediaRadio.checked = true;
+  activeVertical = qp.vertical || null;
+  renderVerticalPickers();
+}
+
 // --- Сохранённые поиски ---
 async function loadSavedSearches() {
   const listEl = document.getElementById('saved-list');
@@ -743,16 +827,7 @@ async function loadSavedSearches() {
 
     listEl.querySelectorAll('.run-saved').forEach((el, idx) => {
       el.addEventListener('click', () => {
-        const qp = items[idx].query_params;
-        document.getElementById('search-q').value = qp.q || '';
-        document.getElementById('search-page').value = qp.page || '';
-        document.getElementById('search-date-from').value = qp.dateFrom || '';
-        document.getElementById('search-date-to').value = qp.dateTo || '';
-        document.getElementById('search-sort').value = qp.sort || 'date_desc';
-        setSelectedCountries(qp.countries || (qp.country ? [qp.country] : ['US']));
-        document.getElementById('search-active').checked = qp.active;
-        activeVertical = qp.vertical || null;
-        renderVerticalPickers();
+        applyQueryToForm(items[idx].query_params);
         searchForm.requestSubmit();
       });
     });

@@ -50,16 +50,25 @@ function cookieHeader() {
   return Object.entries(cookieJar).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
-function buildUrl({ country, keyword, activeStatus, mediaType }) {
+function buildUrl({ country, keyword, pageId, activeStatus, mediaType }) {
   const params = new URLSearchParams({
     active_status: activeStatus === 'all' ? 'all' : 'active',
     ad_type: 'all',
     country: country || 'ALL',
     is_targeted_country: 'false',
     media_type: mediaType === 'image' || mediaType === 'video' ? mediaType : 'all',
-    search_type: 'keyword_unordered',
   });
-  if (keyword) params.set('q', keyword);
+  // "Все объявления этой страницы" — отдельный режим поиска у Facebook, не то же самое,
+  // что искать числовой page_id как текст в объявлении (q=12345 не находит ничего,
+  // это как раз баг, который чинит этот if). У публичной библиотеки свой параметр —
+  // view_all_page_id + search_type=page, без q вообще.
+  if (pageId) {
+    params.set('search_type', 'page');
+    params.set('view_all_page_id', pageId);
+  } else {
+    params.set('search_type', 'keyword_unordered');
+    if (keyword) params.set('q', keyword);
+  }
   return `${BASE_URL}?${params.toString()}`;
 }
 
@@ -192,8 +201,8 @@ async function solveClientChallenge(challengePath, refererUrl) {
 
 // Выполняет один поисковый запрос к публичной библиотеке.
 // Возвращает { ads, count, captchaRequired, blocked }.
-async function scrapeOnce({ country, keyword, activeStatus, mediaType }, attempt = 0) {
-  const url = buildUrl({ country, keyword, activeStatus, mediaType });
+async function scrapeOnce({ country, keyword, pageId, activeStatus, mediaType }, attempt = 0) {
+  const url = buildUrl({ country, keyword, pageId, activeStatus, mediaType });
   const headers = { ...BROWSER_HEADERS };
   const cookies = cookieHeader();
   if (cookies) headers['Cookie'] = cookies;
@@ -209,7 +218,7 @@ async function scrapeOnce({ country, keyword, activeStatus, mediaType }, attempt
       const challengePath = extractChallengeUrl(bodySnippet);
       if (challengePath) {
         const solved = await solveClientChallenge(challengePath, url);
-        if (solved) return scrapeOnce({ country, keyword, activeStatus, mediaType }, attempt + 1);
+        if (solved) return scrapeOnce({ country, keyword, pageId, activeStatus, mediaType }, attempt + 1);
       }
     }
 
@@ -252,14 +261,16 @@ async function scrapeOnce({ country, keyword, activeStatus, mediaType }, attempt
 
 // Поиск по нескольким странам и/или нескольким ключевым словам (для режима
 // "Все вертикали") одним вызовом, с объединением и удалением дублей по id.
-async function scrapeAdLibrary({ countries, keywords, activeStatus, mediaType }) {
+async function scrapeAdLibrary({ countries, keywords, pageId, activeStatus, mediaType }) {
   const countryList = (countries && countries.length ? countries : ['ALL']);
-  const keywordList = (keywords && keywords.length ? keywords : [null]);
+  // Поиск "все объявления этой страницы" (pageId) — отдельный режим, не комбинируется
+  // с перебором ключевых слов: он одним запросом возвращает все креативы страницы.
+  const keywordList = pageId ? [null] : (keywords && keywords.length ? keywords : [null]);
 
   const tasks = [];
   for (const country of countryList) {
     for (const keyword of keywordList) {
-      tasks.push(scrapeOnce({ country, keyword, activeStatus, mediaType }));
+      tasks.push(scrapeOnce({ country, keyword, pageId, activeStatus, mediaType }));
     }
   }
 

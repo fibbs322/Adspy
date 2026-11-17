@@ -120,13 +120,27 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
   // ошибку на любой запрос. Поэтому ищем через ту же публичную страницу
   // facebook.com/ads/library, которую видит любой человек в браузере без логина —
   // она отдаёт те же данные, просто без официального API. Подробнее — в самом скрейпере.
+  // "Все объявления этой страницы" — отдельный режим поиска у Facebook (view_all_page_id),
+  // а не поиск числового page_id как текста в объявлении (это ничего не находит — был баг).
+  // Если в поле Fan Page уже готовый числовой ID (так приходит из клика по карточке) —
+  // используем его напрямую. Если это ссылка/вики-имя — пробуем превратить в ID через
+  // Graph API; если и это не вышло — откатываемся на поиск по тексту как раньше.
+  let pageIdForScrape = null;
   let keywordsForScrape;
   if (allVerticalsMode) {
     keywordsForScrape = ALL_VERTICALS_SEED_KEYWORDS;
   } else if (pageQuery) {
-    // Ищем по имени страницы/рекламодателя как по обычному ключевому слову —
-    // поиск на facebook.com/ads/library матчит и текст объявлений, и имя страницы.
-    keywordsForScrape = [pageQuery];
+    if (/^\d+$/.test(pageQuery)) {
+      pageIdForScrape = pageQuery;
+    } else {
+      try {
+        pageIdForScrape = await resolvePageId(pageQuery);
+      } catch (_) {
+        // Не вышло определить числовой ID — ищем как обычный текст (старое поведение).
+        keywordsForScrape = [pageQuery];
+      }
+    }
+    if (!pageIdForScrape && !keywordsForScrape) keywordsForScrape = [pageQuery];
   } else {
     keywordsForScrape = [keyword];
   }
@@ -136,6 +150,7 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     scrapeResult = await scrapeAdLibrary({
       countries: countryList,
       keywords: keywordsForScrape,
+      pageId: pageIdForScrape,
       activeStatus: active === 'false' ? 'all' : 'active',
       mediaType: mediaType === 'image' || mediaType === 'video' ? mediaType : 'all',
     });
