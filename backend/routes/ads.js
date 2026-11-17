@@ -143,7 +143,26 @@ const VERTICAL_SEED_KEYWORDS = {
   saas: ['app', 'software', 'free trial', 'subscription', 'download app', 'best app', 'ai tool', 'productivity app'],
   education: ['course', 'online course', 'certificate', 'masterclass', 'learn online', 'bootcamp', 'learn new skill'],
   travel: ['travel', 'flight deals', 'hotel deals', 'vacation', 'cheap flights', 'book now', 'travel package'],
-  gambling: ['casino', 'slots', 'bet', 'poker', 'jackpot', 'free spins', 'bonus', 'sportsbook', 'win real money', 'online casino'],
+  // Гемблинг — отдельно разросшийся список: обычных слов ("casino", "slots") слишком мало,
+  // конкурентные trackers типа "тайвер" бьют по НАЗВАНИЯМ конкретных слотов и игровых
+  // механик (это и есть основной объём креативов в нише — паблишеры гонят трафик на
+  // конкретную игру, а не на слово "casino"), плюс отдельно по бетинг/покер/лотерейной
+  // лексике. Чем больше анкоров — тем больше параллельных запросов и тем меньше дублей
+  // пролетает мимо (см. комментарий у scrapeAdLibrary: Meta не умеет OR внутри одного запроса).
+  gambling: [
+    // общие
+    'casino', 'online casino', 'slots', 'slot machine', 'bet', 'betting', 'sportsbook',
+    'poker', 'blackjack', 'roulette', 'baccarat', 'bingo', 'lottery', 'scratch card',
+    // бонусы/call-to-action (основной объём рекламных текстов в нише)
+    'free spins', 'deposit bonus', 'no deposit bonus', 'welcome bonus', 'win real money',
+    'jackpot', 'spin to win', 'live casino', 'real money casino', 'instant withdrawal',
+    // популярные слоты/механики (конкретные названия — то, на что льют трафик паблишеры)
+    'sweet bonanza', 'gates of olympus', 'book of dead', 'starburst slot', 'big bass bonanza',
+    'wolf gold', 'money train slot', 'fruit party slot', 'buffalo king', 'mega moolah',
+    'crazy time', 'aviator game', 'crash game casino', 'fish game casino', 'plinko casino',
+    // спортивный беттинг отдельно
+    'football betting', 'live betting', 'parlay bet', 'odds boost', 'esports betting',
+  ],
   other: [],
 };
 
