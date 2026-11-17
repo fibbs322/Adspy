@@ -17,6 +17,55 @@ tabBtns.forEach((btn) => {
   });
 });
 
+// --- Вход через Google ---
+function waitForGoogleScript(timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const check = () => {
+      if (window.google && window.google.accounts && window.google.accounts.id) return resolve(true);
+      if (Date.now() - start > timeoutMs) return resolve(false);
+      setTimeout(check, 100);
+    };
+    check();
+  });
+}
+
+async function initGoogleSignIn() {
+  try {
+    const config = await API.getConfig();
+    if (!config.googleClientId) return;
+    const ready = await waitForGoogleScript();
+    if (!ready) return;
+
+    const box = document.getElementById('google-signin-box');
+    box.classList.remove('hidden');
+
+    window.google.accounts.id.initialize({
+      client_id: config.googleClientId,
+      callback: async (response) => {
+        const errEls = [document.getElementById('login-error'), document.getElementById('register-error')];
+        errEls.forEach((el) => { if (el) el.textContent = ''; });
+        try {
+          const data = await API.googleLogin(response.credential);
+          API.setToken(data.token);
+          showDashboard();
+        } catch (err) {
+          errEls.forEach((el) => { if (el) el.textContent = err.message; });
+        }
+      },
+    });
+
+    window.google.accounts.id.renderButton(document.getElementById('google-signin-button'), {
+      theme: 'filled_black',
+      size: 'large',
+      width: 300,
+      text: 'continue_with',
+    });
+  } catch (err) {
+    // Если бэкенд недоступен или конфиг не отдаётся — просто не показываем кнопку Google
+  }
+}
+
 const authView = document.getElementById('auth-view');
 const dashboardView = document.getElementById('dashboard-view');
 const nav = document.getElementById('nav');
@@ -241,3 +290,4 @@ if (API.getToken()) {
 } else {
   showAuth();
 }
+initGoogleSignIn();

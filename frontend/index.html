@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AdSpy — трекер рекламных креативов Facebook</title>
 <link rel="stylesheet" href="/css/style.css" />
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -19,6 +20,11 @@
       <div class="tabs">
         <button class="tab-btn active" data-tab="login">Вход</button>
         <button class="tab-btn" data-tab="register">Регистрация</button>
+      </div>
+
+      <div id="google-signin-box" class="google-signin-box hidden">
+        <div id="google-signin-button"></div>
+        <div class="divider"><span>или</span></div>
       </div>
 
       <form id="login-form" class="auth-form">

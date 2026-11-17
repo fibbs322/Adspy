@@ -41,6 +41,12 @@ const API = {
   login(email, password) {
     return this.request('/auth/login', { method: 'POST', body: { email, password } });
   },
+  googleLogin(credential) {
+    return this.request('/auth/google', { method: 'POST', body: { credential } });
+  },
+  getConfig() {
+    return this.request('/config');
+  },
 
   searchAds({ q, country, active }) {
     const params = new URLSearchParams({ q, country, active });

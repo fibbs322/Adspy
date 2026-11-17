@@ -7,15 +7,23 @@ const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
 // Пользователи
+// password_hash может быть пустым для аккаунтов, созданных через Google-вход.
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT NOT NULL DEFAULT '',
+  google_id TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   role TEXT NOT NULL DEFAULT 'user'
 );
 `);
+
+// Миграция для существующих баз, созданных до добавления Google-входа.
+const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+if (!userColumns.includes('google_id')) {
+  db.exec('ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE');
+}
 
 // Сохранённые поисковые запросы пользователя (чтобы следить за конкурентами)
 db.exec(`

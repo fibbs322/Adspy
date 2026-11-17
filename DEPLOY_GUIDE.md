@@ -125,6 +125,36 @@ Postgres-базу на 90 дней, потом тоже платно — я мо
 
 ---
 
+## Вход через Google
+
+На сайте есть кнопка «Continue with Google» — пользователи могут входить одним
+кликом через свой Gmail-аккаунт, без пароля. Чтобы включить её:
+
+1. Зайди на https://console.cloud.google.com/ (с любым Google-аккаунтом) и создай проект
+   (если ещё нет) — кнопка в верхней панели рядом с логотипом Google Cloud.
+2. Перейди в **APIs & Services** → **OAuth consent screen**.
+   - User Type: **External**.
+   - Заполни название приложения (например, «AdSpy»), свою почту для поддержки — остальное можно пропустить.
+   - Сохрани. Пока приложение в статусе "Testing" — это нормально, можно
+     добавить себя и других тестировщиков в разделе "Test users", либо
+     опубликовать приложение (Publish App), чтобы вход был доступен всем.
+3. Перейди в **APIs & Services** → **Credentials** → **Create Credentials** → **OAuth client ID**.
+   - Application type: **Web application**.
+   - **Authorized JavaScript origins** — добавь адрес своего сайта, например:
+     `https://adspy-xxxx.onrender.com` (и свой домен, если уже подключил).
+   - Authorized redirect URIs можно оставить пустым — они не нужны для этого способа входа.
+   - Нажми **Create** — появится **Client ID** (строка вида `123456-abc.apps.googleusercontent.com`).
+4. Скопируй этот Client ID и добавь его как переменную окружения `GOOGLE_CLIENT_ID`
+   на хостинге (Render → твой сервис → Environment → Add Environment Variable).
+5. Сохрани — Render сам передеплоит сервис. После этого на сайте появится кнопка Google.
+
+**Важно:** при каждом новом домене (например, когда подключишь свой домен вместо
+`onrender.com`) нужно будет зайти в Google Cloud Console → Credentials → твой
+OAuth client → и добавить новый адрес в **Authorized JavaScript origins**,
+иначе кнопка Google перестанет работать на новом домене.
+
+---
+
 ## Многопользовательский доступ
 
 Сайт уже поддерживает регистрацию и вход нескольких пользователей — у каждого

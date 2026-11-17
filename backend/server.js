@@ -22,6 +22,11 @@ app.use('/api/ads', adsRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
+// Отдаёт фронтенду публичные настройки (например, включена ли кнопка "Войти через Google")
+app.get('/api/config', (req, res) => {
+  res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null });
+});
+
 // Отдаём статический фронтенд (папка ../frontend)
 const frontendDir = path.join(__dirname, '..', 'frontend');
 app.use(express.static(frontendDir));
