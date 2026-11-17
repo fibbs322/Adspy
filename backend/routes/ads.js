@@ -162,6 +162,17 @@ const VERTICAL_SEED_KEYWORDS = {
     'crazy time', 'aviator game', 'crash game casino', 'fish game casino', 'plinko casino',
     // спортивный беттинг отдельно
     'football betting', 'live betting', 'parlay bet', 'odds boost', 'esports betting',
+    // "бренд-слоты" — маскировка под известный бренд (paypal slot, amazon slot и т.п.):
+    // отдельный, очень объёмный паттерн в нише — кликбейтные крео вида "PayPal clients
+    // get free spins" или "Amazon employee secret slot trick", где название чужого
+    // бренда вставлено прямо в текст/название объявления, чтобы обойти фильтры и
+    // выглядеть "официально". Ищем по этим названиям напрямую.
+    'paypal slot', 'amazon slot', 'netflix slot', 'tesla slot', 'apple slot', 'visa slot',
+    'mastercard slot', 'walmart slot', 'elon musk casino', 'bank slot machine',
+    // сторителлинг/UGC-кликбейт — другой массовый шаблон крео в нише: "обычный человек"
+    // рассказывает историю находки/выигрыша, а не прямая реклама бренда казино.
+    'grandma wins jackpot', 'local woman wins casino', 'casino glitch', 'secret casino trick',
+    'casino hack app', 'i tried this casino', 'won on my phone', 'retired slot trick',
   ],
   other: [],
 };
