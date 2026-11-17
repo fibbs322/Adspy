@@ -454,7 +454,8 @@ function renderAds(payload) {
 
   searchMetaEl.innerHTML = `
     <span>Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.
-    ${payload.seed_keyword_used ? ` Слово не вводили — Facebook искал по типовому слову «${escapeHtml(payload.q_used || '')}» для вертикали «${vInfo ? vInfo.label : ''}».` : ''}</span>
+    ${payload.seed_keyword_used ? ` Слово не вводили — Facebook искал по типовому слову «${escapeHtml(payload.q_used || '')}» для вертикали «${vInfo ? vInfo.label : ''}».` : ''}
+    ${payload.all_verticals_used ? ' Слово не вводили — показан срез сразу по всем нишам (без привязки к одной вертикали).' : ''}</span>
     <span class="fb-note">${escapeHtml(payload.note || '')}</span>
   `;
 
@@ -588,17 +589,23 @@ searchForm.addEventListener('submit', async (e) => {
   let q = document.getElementById('search-q').value.trim();
   const page = document.getElementById('search-page').value.trim();
   let usedSeedKeyword = false;
+  let usedAllVerticals = false;
 
   if (!q && !page) {
-    // Ключевое слово не ввели — если выбрана вертикаль, подставляем под капотом её типовое
-    // слово как широкий анкер (у Facebook API нет режима "вообще без фильтров").
-    const vInfo = activeVertical ? verticalInfo(activeVertical) : null;
-    if (vInfo && vInfo.seedKeyword) {
-      q = vInfo.seedKeyword;
-      usedSeedKeyword = true;
+    if (activeVertical === null) {
+      // Выбрано "Все" и ключевое слово не ввели — ищем сразу по всем нишам и склеиваем
+      // результат (у Facebook API нет режима "вообще без фильтров и без привязки к слову").
+      usedAllVerticals = true;
     } else {
-      errEl.textContent = 'Укажи ключевое слово, fan page, или выбери вертикаль (кроме "Другое") — Facebook API не даёт смотреть всё совсем без фильтра.';
-      return;
+      // Выбрана конкретная вертикаль — подставляем под капотом её типовое слово как широкий анкер.
+      const vInfo = verticalInfo(activeVertical);
+      if (vInfo && vInfo.seedKeyword) {
+        q = vInfo.seedKeyword;
+        usedSeedKeyword = true;
+      } else {
+        errEl.textContent = 'У вертикали "Другое" нет типового слова для автоподбора — укажи ключевое слово, fan page, или выбери "Все"/другую вертикаль.';
+        return;
+      }
     }
   }
 
@@ -606,7 +613,7 @@ searchForm.addEventListener('submit', async (e) => {
   const dateFrom = document.getElementById('search-date-from').value || null;
   const dateTo = document.getElementById('search-date-to').value || null;
   const sort = document.getElementById('search-sort').value;
-  lastQuery = { q, page, countries: [...selectedCountries], active, vertical: activeVertical, dateFrom, dateTo, sort };
+  lastQuery = { q, page, countries: [...selectedCountries], active, vertical: activeVertical, dateFrom, dateTo, sort, allVerticals: usedAllVerticals };
 
   resultsEl.innerHTML = '<div class="empty-state">Ищем…</div>';
   try {

@@ -78,16 +78,27 @@ async function resolvePageId(rawInput) {
   return data.id;
 }
 
+// Типовые слова каждой ниши (держим в синхроне со списком VERTICALS во frontend/js/app.js).
+// Используются как широкие анкеры, когда выбрана вертикаль без своего ключевого слова,
+// а также все вместе — когда нажали "Все" и ничего не ввели (см. allVerticalsMode ниже).
+const ALL_VERTICALS_SEED_KEYWORDS = ['shop', 'dating', 'crypto', 'game', 'beauty', 'app', 'course', 'travel', 'casino'];
+
 // Поиск объявлений: по ключевому слову и/или по конкретной fan page.
 // GET /api/ads/search?q=nike&countries=US,UA&active=true&page=facebook.com/nike&dateFrom=2026-01-01&dateTo=2026-02-01
+// &allVerticals=1 — специальный режим кнопки "Все": ключевого слова нет, ищем сразу по всем
+// типовым словам ниш и склеиваем результат (у Meta Ad Library API нет параметра "без фильтра
+// вообще" и нет OR-поиска по нескольким словам в одном запросе — search_terms всегда матчит
+// ad по всем словам сразу, пусть и в любом порядке, так что единственный честный способ
+// получить вперемешку объявления разных ниш — сделать несколько параллельных запросов).
 router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) => {
   try {
-  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo } = req.query;
+  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo, allVerticals } = req.query;
 
   const keyword = (q || '').trim();
   const pageQuery = (page || '').trim();
+  const allVerticalsMode = !keyword && !pageQuery && String(allVerticals) === '1';
 
-  if (!keyword && !pageQuery) {
+  if (!keyword && !pageQuery && !allVerticalsMode) {
     return res.status(400).json({
       error: 'Укажи ключевое слово или fan page — у Meta Ad Library API обязателен хотя бы один из этих двух параметров.',
     });
@@ -119,36 +130,68 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     }
   }
 
-  const params = new URLSearchParams({
+  const baseParams = {
     access_token: process.env.FB_ACCESS_TOKEN,
     ad_type: 'ALL',
     ad_reached_countries: JSON.stringify(countryList),
     ad_active_status: active === 'false' ? 'ALL' : 'ACTIVE',
     fields: FIELDS,
-    limit: '50',
-  });
-  if (keyword) params.set('search_terms', keyword);
-  if (pageId) params.set('search_page_ids', JSON.stringify([pageId]));
-  if (dateFrom) params.set('ad_delivery_date_min', dateFrom);
-  if (dateTo) params.set('ad_delivery_date_max', dateTo);
+  };
+  if (dateFrom) baseParams.ad_delivery_date_min = dateFrom;
+  if (dateTo) baseParams.ad_delivery_date_max = dateTo;
 
-  let fbRes, data;
-  try {
-    fbRes = await fetch(`${FB_BASE_URL}?${params.toString()}`);
-    data = await fbRes.json();
-  } catch (err) {
-    console.error('FB API error:', err);
-    return res.status(500).json({ error: 'Не удалось связаться с Facebook Ad Library API' });
+  async function fetchFbAds(extraParams) {
+    const params = new URLSearchParams({ ...baseParams, ...extraParams });
+    const fbRes = await fetch(`${FB_BASE_URL}?${params.toString()}`);
+    const json = await fbRes.json();
+    return { ok: fbRes.ok, status: fbRes.status, json };
   }
 
-  if (!fbRes.ok) {
-    const msg = data?.error?.message || 'Ошибка запроса к Facebook Ad Library API';
-    return res.status(fbRes.status).json({ error: msg, fb_error: data?.error });
+  let rawAds = [];
+  let paging = null;
+
+  if (allVerticalsMode) {
+    // Несколько параллельных запросов — по одному на каждую типовую нишу, без привязки
+    // к выбранной вертикали (её всё равно нет, выбрано "Все"). Склеиваем и убираем дубли.
+    const calls = ALL_VERTICALS_SEED_KEYWORDS.map((kw) => fetchFbAds({ search_terms: kw, limit: '15' }));
+    const settled = await Promise.allSettled(calls);
+    const seenIds = new Set();
+    for (const result of settled) {
+      if (result.status !== 'fulfilled' || !result.value.ok) continue;
+      for (const ad of result.value.json.data || []) {
+        if (seenIds.has(ad.id)) continue;
+        seenIds.add(ad.id);
+        rawAds.push(ad);
+      }
+    }
+    if (rawAds.length === 0 && settled.every((r) => r.status === 'fulfilled' && !r.value.ok)) {
+      const firstFailed = settled.find((r) => r.status === 'fulfilled' && !r.value.ok);
+      const msg = firstFailed?.value?.json?.error?.message || 'Ошибка запроса к Facebook Ad Library API';
+      return res.status(firstFailed?.value?.status || 500).json({ error: msg });
+    }
+  } else {
+    const extra = { limit: '50' };
+    if (keyword) extra.search_terms = keyword;
+    if (pageId) extra.search_page_ids = JSON.stringify([pageId]);
+
+    let result;
+    try {
+      result = await fetchFbAds(extra);
+    } catch (err) {
+      console.error('FB API error:', err);
+      return res.status(500).json({ error: 'Не удалось связаться с Facebook Ad Library API' });
+    }
+    if (!result.ok) {
+      const msg = result.json?.error?.message || 'Ошибка запроса к Facebook Ad Library API';
+      return res.status(result.status).json({ error: msg, fb_error: result.json?.error });
+    }
+    rawAds = result.json.data || [];
+    paging = result.json.paging || null;
   }
 
   const now = new Date().toISOString();
   const results = [];
-  for (const ad of data.data || []) {
+  for (const ad of rawAds) {
     await db.query(
       `INSERT INTO ad_cache (fb_ad_id, page_name, page_id, ad_creation_time, first_tracked_at, last_seen_at, times_seen, raw_json)
        VALUES ($1, $2, $3, $4, $5, $5, 1, $6)
@@ -192,10 +235,12 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     count: results.length,
     ads: results,
     volume_by_page: volumeByPage,
-    paging: data.paging || null,
+    paging,
     countries: countryList,
     vertical: vertical || null,
-    note: 'Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы. running_days и число активных креативов у страницы — лучшая доступная оценка объёма.',
+    all_verticals_used: allVerticalsMode,
+    note: 'Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы. running_days и число активных креативов у страницы — лучшая доступная оценка объёма.'
+      + (allVerticalsMode ? ' Показан срез сразу по нескольким типовым нишам (без привязки к одной вертикали) — не весь архив Facebook, а обзор.' : ''),
   });
   } catch (err) {
     next(err);

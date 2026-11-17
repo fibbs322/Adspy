@@ -62,7 +62,7 @@ const API = {
     return this.request(`/admin/users/${id}/access`, { method: 'POST', body: { active } });
   },
 
-  searchAds({ q, countries, active, vertical, page, dateFrom, dateTo }) {
+  searchAds({ q, countries, active, vertical, page, dateFrom, dateTo, allVerticals }) {
     const params = new URLSearchParams({ active });
     if (q) params.set('q', q);
     if (page) params.set('page', page);
@@ -70,6 +70,7 @@ const API = {
     if (vertical) params.set('vertical', vertical);
     if (dateFrom) params.set('dateFrom', dateFrom);
     if (dateTo) params.set('dateTo', dateTo);
+    if (allVerticals) params.set('allVerticals', '1');
     return this.request(`/ads/search?${params.toString()}`);
   },
 
