@@ -1,17 +1,21 @@
 // --- Справочники: вертикали и страны ---
 // "Вертикаль" — это наш собственный тег поверх данных Facebook (у Ad Library API нет категорий
 // рекламы), он просто помогает организовать сохранённые поиски и избранное по нишам.
+// seedKeyword — слово, которое подставляется в поиск Facebook (search_terms), если выбрана
+// эта вертикаль, но поле "Ключевое слово" оставлено пустым. У Meta Ad Library API нет
+// режима "без фильтров вообще" — он требует search_terms или search_page_ids, поэтому для
+// кнопки "Найти" без текста используем типовое слово ниши как широкий анкер.
 const VERTICALS = [
-  { id: 'ecommerce', label: 'E-commerce', color: 'var(--v-ecommerce)' },
-  { id: 'dating', label: 'Дейтинг', color: 'var(--v-dating)' },
-  { id: 'finance', label: 'Финансы/Крипто', color: 'var(--v-finance)' },
-  { id: 'gaming', label: 'Игры', color: 'var(--v-gaming)' },
-  { id: 'beauty', label: 'Здоровье/Красота', color: 'var(--v-beauty)' },
-  { id: 'saas', label: 'SaaS/Приложения', color: 'var(--v-saas)' },
-  { id: 'education', label: 'Образование', color: 'var(--v-education)' },
-  { id: 'travel', label: 'Путешествия', color: 'var(--v-travel)' },
-  { id: 'gambling', label: 'Гемблинг', color: 'var(--v-gambling)' },
-  { id: 'other', label: 'Другое', color: 'var(--v-other)' },
+  { id: 'ecommerce', label: 'E-commerce', color: 'var(--v-ecommerce)', seedKeyword: 'shop' },
+  { id: 'dating', label: 'Дейтинг', color: 'var(--v-dating)', seedKeyword: 'dating' },
+  { id: 'finance', label: 'Финансы/Крипто', color: 'var(--v-finance)', seedKeyword: 'crypto' },
+  { id: 'gaming', label: 'Игры', color: 'var(--v-gaming)', seedKeyword: 'game' },
+  { id: 'beauty', label: 'Здоровье/Красота', color: 'var(--v-beauty)', seedKeyword: 'beauty' },
+  { id: 'saas', label: 'SaaS/Приложения', color: 'var(--v-saas)', seedKeyword: 'app' },
+  { id: 'education', label: 'Образование', color: 'var(--v-education)', seedKeyword: 'course' },
+  { id: 'travel', label: 'Путешествия', color: 'var(--v-travel)', seedKeyword: 'travel' },
+  { id: 'gambling', label: 'Гемблинг', color: 'var(--v-gambling)', seedKeyword: 'casino' },
+  { id: 'other', label: 'Другое', color: 'var(--v-other)', seedKeyword: null },
 ];
 function verticalInfo(id) {
   return VERTICALS.find((v) => v.id === id) || null;
@@ -449,7 +453,8 @@ function renderAds(payload) {
   const vInfo = activeVertical ? verticalInfo(activeVertical) : null;
 
   searchMetaEl.innerHTML = `
-    <span>Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.</span>
+    <span>Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.
+    ${payload.seed_keyword_used ? ` Слово не вводили — Facebook искал по типовому слову «${escapeHtml(payload.q_used || '')}» для вертикали «${vInfo ? vInfo.label : ''}».` : ''}</span>
     <span class="fb-note">${escapeHtml(payload.note || '')}</span>
   `;
 
@@ -580,11 +585,21 @@ searchForm.addEventListener('submit', async (e) => {
   const errEl = document.getElementById('search-form-error');
   errEl.textContent = '';
 
-  const q = document.getElementById('search-q').value.trim();
+  let q = document.getElementById('search-q').value.trim();
   const page = document.getElementById('search-page').value.trim();
+  let usedSeedKeyword = false;
+
   if (!q && !page) {
-    errEl.textContent = 'Укажи ключевое слово или fan page — это требование Facebook API, хотя бы одно из двух.';
-    return;
+    // Ключевое слово не ввели — если выбрана вертикаль, подставляем под капотом её типовое
+    // слово как широкий анкер (у Facebook API нет режима "вообще без фильтров").
+    const vInfo = activeVertical ? verticalInfo(activeVertical) : null;
+    if (vInfo && vInfo.seedKeyword) {
+      q = vInfo.seedKeyword;
+      usedSeedKeyword = true;
+    } else {
+      errEl.textContent = 'Укажи ключевое слово, fan page, или выбери вертикаль (кроме "Другое") — Facebook API не даёт смотреть всё совсем без фильтра.';
+      return;
+    }
   }
 
   const active = document.getElementById('search-active').checked;
@@ -596,6 +611,8 @@ searchForm.addEventListener('submit', async (e) => {
   resultsEl.innerHTML = '<div class="empty-state">Ищем…</div>';
   try {
     const data = await API.searchAds(lastQuery);
+    data.seed_keyword_used = usedSeedKeyword;
+    data.q_used = q;
     lastResults = data;
     data.ads = sortAds(data.ads || [], data.volume_by_page || {}, sort);
     renderAds(data);
