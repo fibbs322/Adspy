@@ -830,6 +830,12 @@ function sortAds(ads, volumeByPage, sortMode) {
       return list.sort((a, b) => (b.running_days ?? -1) - (a.running_days ?? -1));
     case 'volume_desc':
       return list.sort((a, b) => volumeOf(b) - volumeOf(a));
+    case 'impressions_desc':
+      // Карточки без оценки (estimated_impressions == null) всегда в конец, независимо
+      // от направления сортировки — иначе в "сначала больше" они бы ложно лезли наверх.
+      return list.sort((a, b) => (b.estimated_impressions ?? -Infinity) - (a.estimated_impressions ?? -Infinity));
+    case 'impressions_asc':
+      return list.sort((a, b) => (a.estimated_impressions ?? Infinity) - (b.estimated_impressions ?? Infinity));
     case 'active_first':
       // Активные объявления сначала (это факт из данных Facebook, а не фильтр из
       // чекбокса "только активные сейчас"), внутри каждой группы — сначала новые.
