@@ -343,6 +343,18 @@ select.filter-input { cursor: pointer; }
 }
 .country-search:focus { outline: none; border-color: var(--accent); }
 .country-empty { padding: 8px; font-size: 13px; color: var(--text-dim); }
+.region-presets { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px; }
+.region-preset-btn {
+  flex: 1 1 auto;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.region-preset-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .stats-box {
   margin-top: 18px;

@@ -27,109 +27,109 @@ function verticalInfo(id) {
 // гео для баинга: Северная Америка, вся Европа, СНГ, Латам, Азия, Ближний Восток, Африка, Океания.
 const COUNTRIES = [
   // Северная Америка
-  { code: 'US', label: 'США' },
-  { code: 'CA', label: 'Канада' },
-  { code: 'MX', label: 'Мексика' },
+  { code: 'US', label: 'США', region: 'na' },
+  { code: 'CA', label: 'Канада', region: 'na' },
+  { code: 'MX', label: 'Мексика', region: 'na' },
   // СНГ и соседи
-  { code: 'UA', label: 'Украина' },
-  { code: 'PL', label: 'Польша' },
-  { code: 'MD', label: 'Молдова' },
-  { code: 'GE', label: 'Грузия' },
-  { code: 'AM', label: 'Армения' },
-  { code: 'AZ', label: 'Азербайджан' },
-  { code: 'KZ', label: 'Казахстан' },
-  { code: 'UZ', label: 'Узбекистан' },
-  { code: 'KG', label: 'Киргизия' },
+  { code: 'UA', label: 'Украина', region: 'cis' },
+  { code: 'PL', label: 'Польша', region: 'cis' },
+  { code: 'MD', label: 'Молдова', region: 'cis' },
+  { code: 'GE', label: 'Грузия', region: 'cis' },
+  { code: 'AM', label: 'Армения', region: 'cis' },
+  { code: 'AZ', label: 'Азербайджан', region: 'cis' },
+  { code: 'KZ', label: 'Казахстан', region: 'cis' },
+  { code: 'UZ', label: 'Узбекистан', region: 'cis' },
+  { code: 'KG', label: 'Киргизия', region: 'cis' },
   // Европа
-  { code: 'GB', label: 'Великобритания' },
-  { code: 'DE', label: 'Германия' },
-  { code: 'FR', label: 'Франция' },
-  { code: 'ES', label: 'Испания' },
-  { code: 'IT', label: 'Италия' },
-  { code: 'PT', label: 'Португалия' },
-  { code: 'NL', label: 'Нидерланды' },
-  { code: 'BE', label: 'Бельгия' },
-  { code: 'CH', label: 'Швейцария' },
-  { code: 'AT', label: 'Австрия' },
-  { code: 'SE', label: 'Швеция' },
-  { code: 'NO', label: 'Норвегия' },
-  { code: 'DK', label: 'Дания' },
-  { code: 'FI', label: 'Финляндия' },
-  { code: 'IE', label: 'Ирландия' },
-  { code: 'IS', label: 'Исландия' },
-  { code: 'CZ', label: 'Чехия' },
-  { code: 'SK', label: 'Словакия' },
-  { code: 'HU', label: 'Венгрия' },
-  { code: 'RO', label: 'Румыния' },
-  { code: 'BG', label: 'Болгария' },
-  { code: 'GR', label: 'Греция' },
-  { code: 'HR', label: 'Хорватия' },
-  { code: 'RS', label: 'Сербия' },
-  { code: 'SI', label: 'Словения' },
-  { code: 'LT', label: 'Литва' },
-  { code: 'LV', label: 'Латвия' },
-  { code: 'EE', label: 'Эстония' },
-  { code: 'CY', label: 'Кипр' },
-  { code: 'MT', label: 'Мальта' },
-  { code: 'LU', label: 'Люксембург' },
-  { code: 'AL', label: 'Албания' },
-  { code: 'BA', label: 'Босния и Герцеговина' },
-  { code: 'MK', label: 'Северная Македония' },
-  { code: 'ME', label: 'Черногория' },
+  { code: 'GB', label: 'Великобритания', region: 'europe' },
+  { code: 'DE', label: 'Германия', region: 'europe' },
+  { code: 'FR', label: 'Франция', region: 'europe' },
+  { code: 'ES', label: 'Испания', region: 'europe' },
+  { code: 'IT', label: 'Италия', region: 'europe' },
+  { code: 'PT', label: 'Португалия', region: 'europe' },
+  { code: 'NL', label: 'Нидерланды', region: 'europe' },
+  { code: 'BE', label: 'Бельгия', region: 'europe' },
+  { code: 'CH', label: 'Швейцария', region: 'europe' },
+  { code: 'AT', label: 'Австрия', region: 'europe' },
+  { code: 'SE', label: 'Швеция', region: 'europe' },
+  { code: 'NO', label: 'Норвегия', region: 'europe' },
+  { code: 'DK', label: 'Дания', region: 'europe' },
+  { code: 'FI', label: 'Финляндия', region: 'europe' },
+  { code: 'IE', label: 'Ирландия', region: 'europe' },
+  { code: 'IS', label: 'Исландия', region: 'europe' },
+  { code: 'CZ', label: 'Чехия', region: 'europe' },
+  { code: 'SK', label: 'Словакия', region: 'europe' },
+  { code: 'HU', label: 'Венгрия', region: 'europe' },
+  { code: 'RO', label: 'Румыния', region: 'europe' },
+  { code: 'BG', label: 'Болгария', region: 'europe' },
+  { code: 'GR', label: 'Греция', region: 'europe' },
+  { code: 'HR', label: 'Хорватия', region: 'europe' },
+  { code: 'RS', label: 'Сербия', region: 'europe' },
+  { code: 'SI', label: 'Словения', region: 'europe' },
+  { code: 'LT', label: 'Литва', region: 'europe' },
+  { code: 'LV', label: 'Латвия', region: 'europe' },
+  { code: 'EE', label: 'Эстония', region: 'europe' },
+  { code: 'CY', label: 'Кипр', region: 'europe' },
+  { code: 'MT', label: 'Мальта', region: 'europe' },
+  { code: 'LU', label: 'Люксембург', region: 'europe' },
+  { code: 'AL', label: 'Албания', region: 'europe' },
+  { code: 'BA', label: 'Босния и Герцеговина', region: 'europe' },
+  { code: 'MK', label: 'Северная Македония', region: 'europe' },
+  { code: 'ME', label: 'Черногория', region: 'europe' },
   // Ближний Восток
-  { code: 'TR', label: 'Турция' },
-  { code: 'IL', label: 'Израиль' },
-  { code: 'AE', label: 'ОАЭ' },
-  { code: 'SA', label: 'Саудовская Аравия' },
-  { code: 'QA', label: 'Катар' },
-  { code: 'KW', label: 'Кувейт' },
-  { code: 'BH', label: 'Бахрейн' },
-  { code: 'OM', label: 'Оман' },
-  { code: 'JO', label: 'Иордания' },
-  { code: 'LB', label: 'Ливан' },
-  { code: 'EG', label: 'Египет' },
+  { code: 'TR', label: 'Турция', region: 'mena' },
+  { code: 'IL', label: 'Израиль', region: 'mena' },
+  { code: 'AE', label: 'ОАЭ', region: 'mena' },
+  { code: 'SA', label: 'Саудовская Аравия', region: 'mena' },
+  { code: 'QA', label: 'Катар', region: 'mena' },
+  { code: 'KW', label: 'Кувейт', region: 'mena' },
+  { code: 'BH', label: 'Бахрейн', region: 'mena' },
+  { code: 'OM', label: 'Оман', region: 'mena' },
+  { code: 'JO', label: 'Иордания', region: 'mena' },
+  { code: 'LB', label: 'Ливан', region: 'mena' },
+  { code: 'EG', label: 'Египет', region: 'mena' },
   // Азия
-  { code: 'IN', label: 'Индия' },
-  { code: 'PK', label: 'Пакистан' },
-  { code: 'BD', label: 'Бангладеш' },
-  { code: 'ID', label: 'Индонезия' },
-  { code: 'MY', label: 'Малайзия' },
-  { code: 'SG', label: 'Сингапур' },
-  { code: 'TH', label: 'Таиланд' },
-  { code: 'VN', label: 'Вьетнам' },
-  { code: 'PH', label: 'Филиппины' },
-  { code: 'JP', label: 'Япония' },
-  { code: 'KR', label: 'Южная Корея' },
-  { code: 'TW', label: 'Тайвань' },
-  { code: 'HK', label: 'Гонконг' },
-  { code: 'CN', label: 'Китай' },
-  { code: 'NP', label: 'Непал' },
-  { code: 'LK', label: 'Шри-Ланка' },
+  { code: 'IN', label: 'Индия', region: 'asia' },
+  { code: 'PK', label: 'Пакистан', region: 'asia' },
+  { code: 'BD', label: 'Бангладеш', region: 'asia' },
+  { code: 'ID', label: 'Индонезия', region: 'asia' },
+  { code: 'MY', label: 'Малайзия', region: 'asia' },
+  { code: 'SG', label: 'Сингапур', region: 'asia' },
+  { code: 'TH', label: 'Таиланд', region: 'asia' },
+  { code: 'VN', label: 'Вьетнам', region: 'asia' },
+  { code: 'PH', label: 'Филиппины', region: 'asia' },
+  { code: 'JP', label: 'Япония', region: 'asia' },
+  { code: 'KR', label: 'Южная Корея', region: 'asia' },
+  { code: 'TW', label: 'Тайвань', region: 'asia' },
+  { code: 'HK', label: 'Гонконг', region: 'asia' },
+  { code: 'CN', label: 'Китай', region: 'asia' },
+  { code: 'NP', label: 'Непал', region: 'asia' },
+  { code: 'LK', label: 'Шри-Ланка', region: 'asia' },
   // Океания
-  { code: 'AU', label: 'Австралия' },
-  { code: 'NZ', label: 'Новая Зеландия' },
+  { code: 'AU', label: 'Австралия', region: 'oceania' },
+  { code: 'NZ', label: 'Новая Зеландия', region: 'oceania' },
   // Латинская Америка
-  { code: 'BR', label: 'Бразилия' },
-  { code: 'AR', label: 'Аргентина' },
-  { code: 'CL', label: 'Чили' },
-  { code: 'CO', label: 'Колумбия' },
-  { code: 'PE', label: 'Перу' },
-  { code: 'EC', label: 'Эквадор' },
-  { code: 'UY', label: 'Уругвай' },
-  { code: 'PY', label: 'Парагвай' },
-  { code: 'BO', label: 'Боливия' },
-  { code: 'VE', label: 'Венесуэла' },
-  { code: 'CR', label: 'Коста-Рика' },
-  { code: 'PA', label: 'Панама' },
-  { code: 'DO', label: 'Доминиканская Республика' },
+  { code: 'BR', label: 'Бразилия', region: 'latam' },
+  { code: 'AR', label: 'Аргентина', region: 'latam' },
+  { code: 'CL', label: 'Чили', region: 'latam' },
+  { code: 'CO', label: 'Колумбия', region: 'latam' },
+  { code: 'PE', label: 'Перу', region: 'latam' },
+  { code: 'EC', label: 'Эквадор', region: 'latam' },
+  { code: 'UY', label: 'Уругвай', region: 'latam' },
+  { code: 'PY', label: 'Парагвай', region: 'latam' },
+  { code: 'BO', label: 'Боливия', region: 'latam' },
+  { code: 'VE', label: 'Венесуэла', region: 'latam' },
+  { code: 'CR', label: 'Коста-Рика', region: 'latam' },
+  { code: 'PA', label: 'Панама', region: 'latam' },
+  { code: 'DO', label: 'Доминиканская Республика', region: 'latam' },
   // Африка
-  { code: 'ZA', label: 'ЮАР' },
-  { code: 'NG', label: 'Нигерия' },
-  { code: 'KE', label: 'Кения' },
-  { code: 'GH', label: 'Гана' },
-  { code: 'MA', label: 'Марокко' },
-  { code: 'TN', label: 'Тунис' },
-  { code: 'DZ', label: 'Алжир' },
+  { code: 'ZA', label: 'ЮАР', region: 'africa' },
+  { code: 'NG', label: 'Нигерия', region: 'africa' },
+  { code: 'KE', label: 'Кения', region: 'africa' },
+  { code: 'GH', label: 'Гана', region: 'africa' },
+  { code: 'MA', label: 'Марокко', region: 'africa' },
+  { code: 'TN', label: 'Тунис', region: 'africa' },
+  { code: 'DZ', label: 'Алжир', region: 'africa' },
 ];
 
 let selectedCountries = ['US'];
@@ -159,6 +159,16 @@ async function initFbStatus() {
 // renderCountryPanel(), а сам список чекбоксов перерисовывается отдельно в renderCountryList()
 // при каждом вводе, чтобы фокус/курсор в поле поиска не сбрасывался на каждую букву.
 let countrySearchTerm = '';
+
+// Быстрые кнопки по регионам — выделяют одним кликом весь регион (а не страну за
+// страной), поверх уже существующего текстового поиска и общего чекбокса "Все страны".
+// Коды привязаны к полю region у каждой записи COUNTRIES (расставлено по комментариям
+// секций выше: Европа/СНГ объединять не стали — СНГ исторически отдельная кнопка).
+const REGION_PRESETS = [
+  { key: 'europe', label: 'Европа' },
+  { key: 'asia', label: 'Азия' },
+  { key: 'latam', label: 'Латам' },
+];
 
 function renderCountryList() {
   const listEl = document.getElementById('country-list');
@@ -192,6 +202,9 @@ function renderCountryPanel() {
   panel.innerHTML = `
     <input type="text" id="country-search" class="country-search" placeholder="Поиск страны…" value="${escapeHtml(countrySearchTerm)}" />
     <label><input type="checkbox" id="country-all-checkbox" value="ALL" ${selectedCountries.includes('ALL') ? 'checked' : ''}/> Все страны</label>
+    <div class="region-presets">
+      ${REGION_PRESETS.map((r) => `<button type="button" class="region-preset-btn" data-region="${r.key}">${r.label}</button>`).join('')}
+    </div>
     <hr/>
     <div id="country-list"></div>
   `;
@@ -199,6 +212,16 @@ function renderCountryPanel() {
     selectedCountries = e.target.checked ? ['ALL'] : ['US'];
     renderCountryList();
     updateCountryToggleLabel();
+  });
+  panel.querySelectorAll('.region-preset-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const codes = COUNTRIES.filter((c) => c.region === btn.dataset.region).map((c) => c.code);
+      selectedCountries = codes.length ? codes : ['US'];
+      renderAllCountryCheckbox();
+      renderCountryList();
+      updateCountryToggleLabel();
+    });
   });
   const searchInput = document.getElementById('country-search');
   searchInput.addEventListener('input', () => {
