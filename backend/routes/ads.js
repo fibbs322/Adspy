@@ -195,9 +195,17 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     if (!pageIdForScrape && !keywordsForScrape) keywordsForScrape = [pageQuery];
   } else if (verticalSeeds) {
     keywordsForScrape = verticalSeeds;
+  } else if (keyword.includes(',')) {
+    // Facebook сам поддерживает только AND-поиск (search_terms матчит объявление, где есть
+    // ВСЕ введённые слова) — вводить "casino, slots" и ждать объявлений с любым из них не
+    // сработает через один запрос. Поэтому слова через запятую трактуем как "любое из" и
+    // бьём на параллельные запросы, как уже делаем для вертикалей и "Все".
+    keywordsForScrape = keyword.split(',').map((w) => w.trim()).filter(Boolean);
+    if (keywordsForScrape.length === 0) keywordsForScrape = [keyword];
   } else {
     keywordsForScrape = [keyword];
   }
+  const multiKeywordMode = keywordsForScrape.length > 1 && !verticalSeeds && !allVerticalsMode && keyword.includes(',');
 
   let scrapeResult;
   try {
@@ -296,6 +304,7 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     vertical: vertical || null,
     all_verticals_used: allVerticalsMode,
     vertical_seed_keywords_used: verticalSeeds || null,
+    multi_keywords_used: multiKeywordMode ? keywordsForScrape : null,
     // Ссылка на тот же самый поиск, но на настоящей публичной странице facebook.com/ads/library —
     // чтобы можно было одной кнопкой сверить/открыть результат в оригинальном интерфейсе Facebook.
     fb_library_url: buildFbLibraryUrl({
@@ -307,7 +316,8 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     }),
     note: 'Данные берутся с публичной страницы facebook.com/ads/library. Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы — running_days и число активных креативов у страницы остаются лучшей доступной оценкой объёма.'
       + (allVerticalsMode ? ' Показан срез сразу по нескольким типовым нишам (без привязки к одной вертикали) — не весь архив Facebook, а обзор.' : '')
-      + (verticalSeeds ? ` Для вертикали использован набор из ${verticalSeeds.length} анкорных слов (${verticalSeeds.join(', ')}), а не одно слово — так находится заметно больше креативов.` : ''),
+      + (verticalSeeds ? ` Для вертикали использован набор из ${verticalSeeds.length} анкорных слов (${verticalSeeds.join(', ')}), а не одно слово — так находится заметно больше креативов.` : '')
+      + (multiKeywordMode ? ` Слова через запятую искались как "любое из" (${keywordsForScrape.join(', ')}), а не как одно объявление со всеми словами сразу.` : ''),
   });
   } catch (err) {
     next(err);

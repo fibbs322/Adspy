@@ -489,6 +489,7 @@ function renderAds(payload) {
       ${showBackBtn ? '<button type="button" id="back-to-search-btn" class="btn-back">← Назад к поиску</button>' : ''}
       Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.
     ${payload.vertical_seed_keywords_used ? ` Слово не вводили — искали по набору слов «${escapeHtml(payload.vertical_seed_keywords_used.join(', '))}» для вертикали «${vInfo ? vInfo.label : ''}».` : ''}
+    ${payload.multi_keywords_used ? ` Искали по любому из слов: «${escapeHtml(payload.multi_keywords_used.join(', '))}».` : ''}
     ${payload.all_verticals_used ? ' Слово не вводили — показан срез сразу по всем нишам (без привязки к одной вертикали).' : ''}
     ${payload.fb_library_url ? ` <a href="${escapeHtml(payload.fb_library_url)}" target="_blank" rel="noopener" class="fb-lib-link">Открыть в FB Ad Library ↗</a>` : ''}</span>
     <span class="fb-note">${escapeHtml(payload.note || '')}</span>
