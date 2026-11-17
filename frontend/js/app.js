@@ -794,6 +794,14 @@ function sortAds(ads, volumeByPage, sortMode) {
       return list.sort((a, b) => (b.running_days ?? -1) - (a.running_days ?? -1));
     case 'volume_desc':
       return list.sort((a, b) => volumeOf(b) - volumeOf(a));
+    case 'active_first':
+      // Активные объявления сначала (это факт из данных Facebook, а не фильтр из
+      // чекбокса "только активные сейчас"), внутри каждой группы — сначала новые.
+      return list.sort((a, b) => {
+        const activeDiff = (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0);
+        if (activeDiff !== 0) return activeDiff;
+        return new Date(b.launch_date || 0) - new Date(a.launch_date || 0);
+      });
     case 'date_desc':
     default:
       return list.sort((a, b) => new Date(b.launch_date || 0) - new Date(a.launch_date || 0));
