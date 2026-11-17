@@ -481,6 +481,15 @@ select.filter-input { cursor: pointer; }
   margin-right: 8px;
 }
 .btn-back:hover { border-color: var(--accent); color: var(--accent); }
+.fb-lib-link {
+  margin-left: 8px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fb-lib-link:hover { text-decoration: underline; }
 .ad-card .actions { display: flex; gap: 6px; margin-top: 4px; }
 .ad-card .actions a, .ad-card .actions button {
   flex: 1;

@@ -9,6 +9,29 @@ const router = express.Router();
 const FB_GRAPH_VERSION = 'v21.0';
 const FB_BASE_URL = `https://graph.facebook.com/${FB_GRAPH_VERSION}/ads_archive`;
 
+// Строит ссылку на тот же поиск на настоящей публичной странице facebook.com/ads/library,
+// чтобы можно было одной кнопкой открыть и сверить результат в оригинальном интерфейсе Facebook.
+// У самой страницы нет мульти-слов через OR, поэтому для фан-аута по нескольким анкорным словам
+// (вертикаль/allVerticals) берём первое слово — просто как стартовую точку для ручной проверки.
+function buildFbLibraryUrl({ countries, keywordsForScrape, pageIdForScrape, active, mediaType }) {
+  const params = new URLSearchParams({
+    active_status: active === 'false' ? 'all' : 'active',
+    ad_type: 'all',
+    country: (countries && countries[0]) || 'ALL',
+    is_targeted_country: 'false',
+    media_type: mediaType === 'image' || mediaType === 'video' ? mediaType : 'all',
+  });
+  if (pageIdForScrape) {
+    params.set('search_type', 'page');
+    params.set('view_all_page_id', pageIdForScrape);
+  } else {
+    params.set('search_type', 'keyword_unordered');
+    const firstKeyword = (keywordsForScrape || []).find(Boolean);
+    if (firstKeyword) params.set('q', firstKeyword);
+  }
+  return `https://www.facebook.com/ads/library/?${params.toString()}`;
+}
+
 // Поля, которые отдаёт Meta Ad Library API.
 // Полный список и ограничения: https://www.facebook.com/ads/library/api
 const FIELDS = [
@@ -79,10 +102,33 @@ async function resolvePageId(rawInput) {
   return data.id;
 }
 
-// Типовые слова каждой ниши (держим в синхроне со списком VERTICALS во frontend/js/app.js).
-// Используются как широкие анкеры, когда выбрана вертикаль без своего ключевого слова,
-// а также все вместе — когда нажали "Все" и ничего не ввели (см. allVerticalsMode ниже).
-const ALL_VERTICALS_SEED_KEYWORDS = ['shop', 'dating', 'crypto', 'game', 'beauty', 'app', 'course', 'travel', 'casino'];
+// Набор типовых слов-анкеров для каждой ниши (держим id в синхроне со списком VERTICALS во
+// frontend/js/app.js). Раньше тут было по ОДНОМУ слову на нишу — этого ощутимо мало: у Meta
+// Ad Library API нет OR-поиска по нескольким словам в одном запросе (search_terms матчит ad
+// по всем словам сразу, в любом порядке), так что "гемблинг" = просто все объявления со
+// словом "casino" — мимо пролетает всё с "bet", "slots", "poker" и т.д. Поэтому у каждой
+// ниши теперь список из нескольких анкеров: когда выбрана конкретная вертикаль без своего
+// ключевого слова, бьём параллельными запросами по всем её словам и склеиваем результат
+// (тот же приём, что и в allVerticalsMode, только в рамках одной ниши, а не всех сразу).
+const VERTICAL_SEED_KEYWORDS = {
+  ecommerce: ['shop', 'sale', 'free shipping', 'discount code', 'store'],
+  dating: ['dating', 'singles', 'meet singles', 'dating app'],
+  finance: ['crypto', 'bitcoin', 'forex', 'trading', 'invest', 'loan'],
+  gaming: ['game', 'play now', 'mobile game', 'download game'],
+  beauty: ['beauty', 'skincare', 'weight loss', 'supplement', 'anti aging'],
+  saas: ['app', 'software', 'free trial', 'subscription'],
+  education: ['course', 'online course', 'certificate', 'masterclass'],
+  travel: ['travel', 'flight deals', 'hotel deals', 'vacation'],
+  gambling: ['casino', 'slots', 'bet', 'poker', 'jackpot', 'free spins', 'bonus', 'sportsbook'],
+  other: [],
+};
+
+// Для кнопки "Все" (allVerticalsMode) берём по одному слову из каждой ниши — иначе фан-аут
+// вышел бы на полсотни параллельных запросов разом, что и для Facebook подозрительно, и
+// просто долго. Для КОНКРЕТНОЙ выбранной вертикали используется полный список выше.
+const ALL_VERTICALS_SEED_KEYWORDS = Object.values(VERTICAL_SEED_KEYWORDS)
+  .map((list) => list[0])
+  .filter(Boolean);
 
 // Поиск объявлений: по ключевому слову и/или по конкретной fan page.
 // GET /api/ads/search?q=nike&countries=US,UA&active=true&page=facebook.com/nike&dateFrom=2026-01-01&dateTo=2026-02-01
@@ -98,10 +144,16 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
   const keyword = (q || '').trim();
   const pageQuery = (page || '').trim();
   const allVerticalsMode = !keyword && !pageQuery && String(allVerticals) === '1';
+  // Выбрана конкретная вертикаль (например "Гемблинг"), но без своего ключевого слова —
+  // тогда вместо одного слова "casino" используем весь набор анкорных слов этой ниши
+  // (см. VERTICAL_SEED_KEYWORDS выше), чтобы не терять объявления с другой лексикой.
+  const verticalSeeds = !keyword && !pageQuery && !allVerticalsMode && vertical && VERTICAL_SEED_KEYWORDS[vertical]?.length
+    ? VERTICAL_SEED_KEYWORDS[vertical]
+    : null;
 
-  if (!keyword && !pageQuery && !allVerticalsMode) {
+  if (!keyword && !pageQuery && !allVerticalsMode && !verticalSeeds) {
     return res.status(400).json({
-      error: 'Укажи ключевое слово или fan page — у Meta Ad Library API обязателен хотя бы один из этих двух параметров.',
+      error: 'Укажи ключевое слово, fan page или вертикаль — у Meta Ad Library API обязателен хотя бы один из этих параметров.',
     });
   }
 
@@ -141,6 +193,8 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
       }
     }
     if (!pageIdForScrape && !keywordsForScrape) keywordsForScrape = [pageQuery];
+  } else if (verticalSeeds) {
+    keywordsForScrape = verticalSeeds;
   } else {
     keywordsForScrape = [keyword];
   }
@@ -241,8 +295,19 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     countries: countryList,
     vertical: vertical || null,
     all_verticals_used: allVerticalsMode,
+    vertical_seed_keywords_used: verticalSeeds || null,
+    // Ссылка на тот же самый поиск, но на настоящей публичной странице facebook.com/ads/library —
+    // чтобы можно было одной кнопкой сверить/открыть результат в оригинальном интерфейсе Facebook.
+    fb_library_url: buildFbLibraryUrl({
+      countries: countryList,
+      keywordsForScrape,
+      pageIdForScrape,
+      active,
+      mediaType,
+    }),
     note: 'Данные берутся с публичной страницы facebook.com/ads/library. Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы — running_days и число активных креативов у страницы остаются лучшей доступной оценкой объёма.'
-      + (allVerticalsMode ? ' Показан срез сразу по нескольким типовым нишам (без привязки к одной вертикали) — не весь архив Facebook, а обзор.' : ''),
+      + (allVerticalsMode ? ' Показан срез сразу по нескольким типовым нишам (без привязки к одной вертикали) — не весь архив Facebook, а обзор.' : '')
+      + (verticalSeeds ? ` Для вертикали использован набор из ${verticalSeeds.length} анкорных слов (${verticalSeeds.join(', ')}), а не одно слово — так находится заметно больше креативов.` : ''),
   });
   } catch (err) {
     next(err);

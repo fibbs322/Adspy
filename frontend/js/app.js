@@ -1,21 +1,21 @@
 // --- Справочники: вертикали и страны ---
 // "Вертикаль" — это наш собственный тег поверх данных Facebook (у Ad Library API нет категорий
 // рекламы), он просто помогает организовать сохранённые поиски и избранное по нишам.
-// seedKeyword — слово, которое подставляется в поиск Facebook (search_terms), если выбрана
-// эта вертикаль, но поле "Ключевое слово" оставлено пустым. У Meta Ad Library API нет
-// режима "без фильтров вообще" — он требует search_terms или search_page_ids, поэтому для
-// кнопки "Найти" без текста используем типовое слово ниши как широкий анкер.
+// hasSeedKeywords — если выбрана эта вертикаль, но поле "Ключевое слово" оставлено пустым,
+// сервер сам подставляет НАБОР типовых анкорных слов этой ниши (не одно слово, см.
+// VERTICAL_SEED_KEYWORDS в backend/routes/ads.js) и склеивает результаты по ним. У Meta Ad
+// Library нет режима "без фильтров вообще" — он требует search_terms или search_page_ids.
 const VERTICALS = [
-  { id: 'ecommerce', label: 'E-commerce', color: 'var(--v-ecommerce)', seedKeyword: 'shop' },
-  { id: 'dating', label: 'Дейтинг', color: 'var(--v-dating)', seedKeyword: 'dating' },
-  { id: 'finance', label: 'Финансы/Крипто', color: 'var(--v-finance)', seedKeyword: 'crypto' },
-  { id: 'gaming', label: 'Игры', color: 'var(--v-gaming)', seedKeyword: 'game' },
-  { id: 'beauty', label: 'Здоровье/Красота', color: 'var(--v-beauty)', seedKeyword: 'beauty' },
-  { id: 'saas', label: 'SaaS/Приложения', color: 'var(--v-saas)', seedKeyword: 'app' },
-  { id: 'education', label: 'Образование', color: 'var(--v-education)', seedKeyword: 'course' },
-  { id: 'travel', label: 'Путешествия', color: 'var(--v-travel)', seedKeyword: 'travel' },
-  { id: 'gambling', label: 'Гемблинг', color: 'var(--v-gambling)', seedKeyword: 'casino' },
-  { id: 'other', label: 'Другое', color: 'var(--v-other)', seedKeyword: null },
+  { id: 'ecommerce', label: 'E-commerce', color: 'var(--v-ecommerce)', hasSeedKeywords: true },
+  { id: 'dating', label: 'Дейтинг', color: 'var(--v-dating)', hasSeedKeywords: true },
+  { id: 'finance', label: 'Финансы/Крипто', color: 'var(--v-finance)', hasSeedKeywords: true },
+  { id: 'gaming', label: 'Игры', color: 'var(--v-gaming)', hasSeedKeywords: true },
+  { id: 'beauty', label: 'Здоровье/Красота', color: 'var(--v-beauty)', hasSeedKeywords: true },
+  { id: 'saas', label: 'SaaS/Приложения', color: 'var(--v-saas)', hasSeedKeywords: true },
+  { id: 'education', label: 'Образование', color: 'var(--v-education)', hasSeedKeywords: true },
+  { id: 'travel', label: 'Путешествия', color: 'var(--v-travel)', hasSeedKeywords: true },
+  { id: 'gambling', label: 'Гемблинг', color: 'var(--v-gambling)', hasSeedKeywords: true },
+  { id: 'other', label: 'Другое', color: 'var(--v-other)', hasSeedKeywords: false },
 ];
 function verticalInfo(id) {
   return VERTICALS.find((v) => v.id === id) || null;
@@ -488,8 +488,9 @@ function renderAds(payload) {
     <span>
       ${showBackBtn ? '<button type="button" id="back-to-search-btn" class="btn-back">← Назад к поиску</button>' : ''}
       Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.
-    ${payload.seed_keyword_used ? ` Слово не вводили — Facebook искал по типовому слову «${escapeHtml(payload.q_used || '')}» для вертикали «${vInfo ? vInfo.label : ''}».` : ''}
-    ${payload.all_verticals_used ? ' Слово не вводили — показан срез сразу по всем нишам (без привязки к одной вертикали).' : ''}</span>
+    ${payload.vertical_seed_keywords_used ? ` Слово не вводили — искали по набору слов «${escapeHtml(payload.vertical_seed_keywords_used.join(', '))}» для вертикали «${vInfo ? vInfo.label : ''}».` : ''}
+    ${payload.all_verticals_used ? ' Слово не вводили — показан срез сразу по всем нишам (без привязки к одной вертикали).' : ''}
+    ${payload.fb_library_url ? ` <a href="${escapeHtml(payload.fb_library_url)}" target="_blank" rel="noopener" class="fb-lib-link">Открыть в FB Ad Library ↗</a>` : ''}</span>
     <span class="fb-note">${escapeHtml(payload.note || '')}</span>
   `;
   const backBtn = document.getElementById('back-to-search-btn');
@@ -676,7 +677,6 @@ searchForm.addEventListener('submit', async (e) => {
 
   let q = document.getElementById('search-q').value.trim();
   const page = document.getElementById('search-page').value.trim();
-  let usedSeedKeyword = false;
   let usedAllVerticals = false;
 
   if (!q && !page) {
@@ -685,13 +685,11 @@ searchForm.addEventListener('submit', async (e) => {
       // результат (у Facebook API нет режима "вообще без фильтров и без привязки к слову").
       usedAllVerticals = true;
     } else {
-      // Выбрана конкретная вертикаль — подставляем под капотом её типовое слово как широкий анкер.
+      // Выбрана конкретная вертикаль без своего слова — сервер сам подставит целый набор
+      // анкорных слов этой ниши (не одно "casino", а весь список) и склеит результаты.
       const vInfo = verticalInfo(activeVertical);
-      if (vInfo && vInfo.seedKeyword) {
-        q = vInfo.seedKeyword;
-        usedSeedKeyword = true;
-      } else {
-        errEl.textContent = 'У вертикали "Другое" нет типового слова для автоподбора — укажи ключевое слово, fan page, или выбери "Все"/другую вертикаль.';
+      if (!vInfo || !vInfo.hasSeedKeywords) {
+        errEl.textContent = 'У вертикали "Другое" нет типовых слов для автоподбора — укажи ключевое слово, fan page, или выбери "Все"/другую вертикаль.';
         return;
       }
     }
@@ -708,8 +706,6 @@ searchForm.addEventListener('submit', async (e) => {
   resultsEl.innerHTML = '<div class="empty-state">Ищем…</div>';
   try {
     const data = await API.searchAds(lastQuery);
-    data.seed_keyword_used = usedSeedKeyword;
-    data.q_used = q;
     lastResults = data;
     data.ads = sortAds(data.ads || [], data.volume_by_page || {}, sort);
     renderAds(data);
