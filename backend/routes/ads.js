@@ -2,6 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const db = require('../db/init');
 const { requireAuth } = require('../middleware/auth');
+const { scrapeAdLibrary } = require('../services/fbLibraryScraper');
 
 const router = express.Router();
 
@@ -104,12 +105,6 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     });
   }
 
-  if (!process.env.FB_ACCESS_TOKEN || process.env.FB_ACCESS_TOKEN === 'paste_your_facebook_access_token_here') {
-    return res.status(503).json({
-      error: 'FB_ACCESS_TOKEN не настроен на сервере. См. DEPLOY_GUIDE.md, раздел "Facebook Ad Library API".',
-    });
-  }
-
   // countries может прийти как "US,UA,PL" (новый мультивыбор) или country=US (старый формат, для совместимости).
   let countryList = [];
   if (countries && countries.trim()) {
@@ -117,76 +112,63 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
   } else if (country && country.trim()) {
     countryList = [country.trim().toUpperCase()];
   }
-  // Facebook ждёт "ALL" отдельным словом, не внутри списка стран — если он там есть, игнорируем остальное.
   if (countryList.includes('ALL')) countryList = ['ALL'];
-  if (countryList.length === 0) countryList = ['US'];
+  if (countryList.length === 0) countryList = ['ALL'];
 
-  let pageId = null;
-  if (pageQuery) {
-    try {
-      pageId = await resolvePageId(pageQuery);
-    } catch (err) {
-      return res.status(400).json({ error: err.message });
-    }
-  }
-
-  const baseParams = {
-    access_token: process.env.FB_ACCESS_TOKEN,
-    ad_type: 'ALL',
-    ad_reached_countries: JSON.stringify(countryList),
-    ad_active_status: active === 'false' ? 'ALL' : 'ACTIVE',
-    fields: FIELDS,
-  };
-  if (dateFrom) baseParams.ad_delivery_date_min = dateFrom;
-  if (dateTo) baseParams.ad_delivery_date_max = dateTo;
-
-  async function fetchFbAds(extraParams) {
-    const params = new URLSearchParams({ ...baseParams, ...extraParams });
-    const fbRes = await fetch(`${FB_BASE_URL}?${params.toString()}`);
-    const json = await fbRes.json();
-    return { ok: fbRes.ok, status: fbRes.status, json };
-  }
-
-  let rawAds = [];
-  let paging = null;
-
+  // Facebook Ad Library API (официальный, через access_token) требует, чтобы личный
+  // аккаунт за токеном прошёл verification личности — пока это не сделано, он отдаёт
+  // ошибку на любой запрос. Поэтому ищем через ту же публичную страницу
+  // facebook.com/ads/library, которую видит любой человек в браузере без логина —
+  // она отдаёт те же данные, просто без официального API. Подробнее — в самом скрейпере.
+  let keywordsForScrape;
   if (allVerticalsMode) {
-    // Несколько параллельных запросов — по одному на каждую типовую нишу, без привязки
-    // к выбранной вертикали (её всё равно нет, выбрано "Все"). Склеиваем и убираем дубли.
-    const calls = ALL_VERTICALS_SEED_KEYWORDS.map((kw) => fetchFbAds({ search_terms: kw, limit: '15' }));
-    const settled = await Promise.allSettled(calls);
-    const seenIds = new Set();
-    for (const result of settled) {
-      if (result.status !== 'fulfilled' || !result.value.ok) continue;
-      for (const ad of result.value.json.data || []) {
-        if (seenIds.has(ad.id)) continue;
-        seenIds.add(ad.id);
-        rawAds.push(ad);
-      }
-    }
-    if (rawAds.length === 0 && settled.every((r) => r.status === 'fulfilled' && !r.value.ok)) {
-      const firstFailed = settled.find((r) => r.status === 'fulfilled' && !r.value.ok);
-      const msg = firstFailed?.value?.json?.error?.message || 'Ошибка запроса к Facebook Ad Library API';
-      return res.status(firstFailed?.value?.status || 500).json({ error: msg });
-    }
+    keywordsForScrape = ALL_VERTICALS_SEED_KEYWORDS;
+  } else if (pageQuery) {
+    // Ищем по имени страницы/рекламодателя как по обычному ключевому слову —
+    // поиск на facebook.com/ads/library матчит и текст объявлений, и имя страницы.
+    keywordsForScrape = [pageQuery];
   } else {
-    const extra = { limit: '50' };
-    if (keyword) extra.search_terms = keyword;
-    if (pageId) extra.search_page_ids = JSON.stringify([pageId]);
+    keywordsForScrape = [keyword];
+  }
 
-    let result;
-    try {
-      result = await fetchFbAds(extra);
-    } catch (err) {
-      console.error('FB API error:', err);
-      return res.status(500).json({ error: 'Не удалось связаться с Facebook Ad Library API' });
-    }
-    if (!result.ok) {
-      const msg = result.json?.error?.message || 'Ошибка запроса к Facebook Ad Library API';
-      return res.status(result.status).json({ error: msg, fb_error: result.json?.error });
-    }
-    rawAds = result.json.data || [];
-    paging = result.json.paging || null;
+  let scrapeResult;
+  try {
+    scrapeResult = await scrapeAdLibrary({
+      countries: countryList,
+      keywords: keywordsForScrape,
+      activeStatus: active === 'false' ? 'all' : 'active',
+    });
+  } catch (err) {
+    console.error('FB scrape error:', err);
+    return res.status(500).json({ error: 'Не удалось связаться с Facebook Ad Library' });
+  }
+
+  if (scrapeResult.captchaRequired) {
+    return res.status(503).json({
+      error: 'Facebook временно запросил капчу на странице Библиотеки рекламы — попробуй ещё раз через пару минут.',
+    });
+  }
+  if (scrapeResult.blocked) {
+    return res.status(502).json({
+      error: 'Facebook не отдал данные Библиотеки рекламы (возможно, изменилась вёрстка страницы или временная блокировка). Попробуй ещё раз чуть позже.',
+    });
+  }
+
+  let rawAds = scrapeResult.ads;
+  const paging = null;
+
+  // Необязательная фильтрация по датам (сам скрейпер их не умеет — фильтруем после получения).
+  if (dateFrom || dateTo) {
+    const fromTime = dateFrom ? new Date(dateFrom).getTime() : null;
+    const toTime = dateTo ? new Date(dateTo).getTime() : null;
+    rawAds = rawAds.filter((ad) => {
+      const started = ad.ad_creation_time || ad.ad_delivery_start_time;
+      if (!started) return true;
+      const t = new Date(started).getTime();
+      if (fromTime && t < fromTime) return false;
+      if (toTime && t > toTime) return false;
+      return true;
+    });
   }
 
   const now = new Date().toISOString();
@@ -239,7 +221,7 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     countries: countryList,
     vertical: vertical || null,
     all_verticals_used: allVerticalsMode,
-    note: 'Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы. running_days и число активных креативов у страницы — лучшая доступная оценка объёма.'
+    note: 'Данные берутся с публичной страницы facebook.com/ads/library. Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы — running_days и число активных креативов у страницы остаются лучшей доступной оценкой объёма.'
       + (allVerticalsMode ? ' Показан срез сразу по нескольким типовым нишам (без привязки к одной вертикали) — не весь архив Facebook, а обзор.' : ''),
   });
   } catch (err) {
