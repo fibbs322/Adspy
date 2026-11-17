@@ -53,6 +53,14 @@ const API = {
   getConfig() {
     return this.request('/config');
   },
+  getMe() {
+    return this.request('/auth/me');
+  },
+
+  adminListUsers() { return this.request('/admin/users'); },
+  adminSetAccess(id, active) {
+    return this.request(`/admin/users/${id}/access`, { method: 'POST', body: { active } });
+  },
 
   searchAds({ q, countries, active, vertical }) {
     const params = new URLSearchParams({ q, active });

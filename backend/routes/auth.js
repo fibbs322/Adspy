@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('../db/init');
 const { sendVerificationEmail, isMailerConfigured, generateCode } = require('../utils/mailer');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -18,6 +19,17 @@ function signToken(user) {
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
+}
+
+// Если на хостинге задан ADMIN_EMAIL и пользователь с таким email у нас есть — делаем его
+// админом и сразу даём доступ к поиску. Так владелец сервиса получает админ-аккаунт просто
+// зайдя под нужным email, без ручного копания в базе.
+function promoteIfAdminEmail(user) {
+  const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  if (!adminEmail || user.email.toLowerCase() !== adminEmail) return user;
+  if (user.role === 'admin' && user.plan_active) return user;
+  db.prepare('UPDATE users SET role = ?, plan_active = 1 WHERE id = ?').run('admin', user.id);
+  return { ...user, role: 'admin', plan_active: 1 };
 }
 
 // Регистрация
@@ -49,8 +61,10 @@ router.post('/register', async (req, res) => {
     const info = db
       .prepare('INSERT INTO users (email, password_hash, email_verified) VALUES (?, ?, 1)')
       .run(normalizedEmail, hash);
-    const token = signToken({ id: info.lastInsertRowid, email: normalizedEmail, role: 'user' });
-    return res.status(201).json({ token, user: { id: info.lastInsertRowid, email: normalizedEmail } });
+    let user = { id: info.lastInsertRowid, email: normalizedEmail, role: 'user', plan_active: 0 };
+    user = promoteIfAdminEmail(user);
+    const token = signToken(user);
+    return res.status(201).json({ token, user: { id: user.id, email: user.email } });
   }
 
   const code = generateCode();
@@ -77,7 +91,7 @@ router.post('/verify-email', (req, res) => {
     return res.status(400).json({ error: 'Укажи email и код' });
   }
   const normalizedEmail = email.toLowerCase();
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+  let user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
   if (!user) {
     return res.status(404).json({ error: 'Пользователь не найден' });
   }
@@ -93,6 +107,7 @@ router.post('/verify-email', (req, res) => {
 
   db.prepare('UPDATE users SET email_verified = 1, verification_code = NULL, verification_expires = NULL WHERE id = ?').run(user.id);
 
+  user = promoteIfAdminEmail(user);
   const token = signToken(user);
   res.json({ token, user: { id: user.id, email: user.email } });
 });
@@ -135,7 +150,7 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Укажи email и пароль' });
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
+  let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
   if (!user) {
     return res.status(401).json({ error: 'Неверный email или пароль' });
   }
@@ -149,8 +164,23 @@ router.post('/login', async (req, res) => {
     return res.status(403).json({ error: 'Email не подтверждён. Проверь почту и введи код.', needsVerification: true, email: user.email });
   }
 
+  user = promoteIfAdminEmail(user);
   const token = signToken(user);
   res.json({ token, user: { id: user.id, email: user.email } });
+});
+
+// Текущий пользователь — роль и доступ к поиску (всегда свежие из базы, а не из JWT,
+// чтобы отзыв/выдача доступа админом срабатывали сразу, без перелогина).
+router.get('/me', requireAuth, (req, res) => {
+  const user = db.prepare('SELECT id, email, role, plan_active, email_verified FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+  res.json({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    isAdmin: user.role === 'admin',
+    hasSearchAccess: user.role === 'admin' || Boolean(user.plan_active),
+  });
 });
 
 // Вход/регистрация через Google (ID-токен от Google Identity Services на фронтенде)
@@ -188,13 +218,14 @@ router.post('/google', async (req, res) => {
     const info = db
       .prepare('INSERT INTO users (email, password_hash, google_id, email_verified) VALUES (?, ?, ?, 1)')
       .run(email, '', googleId);
-    user = { id: info.lastInsertRowid, email, role: 'user' };
+    user = { id: info.lastInsertRowid, email, role: 'user', plan_active: 0 };
   } else if (!user.google_id) {
     // Пользователь раньше регистрировался по email/паролю — привязываем Google к тому же аккаунту
     // и считаем email подтверждённым, раз Google его уже подтвердил.
     db.prepare('UPDATE users SET google_id = ?, email_verified = 1 WHERE id = ?').run(googleId, user.id);
   }
 
+  user = promoteIfAdminEmail(user);
   const token = signToken(user);
   res.json({ token, user: { id: user.id, email: user.email } });
 });

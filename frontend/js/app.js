@@ -256,7 +256,26 @@ function showAuth() {
   dashboardView.classList.add('hidden');
   document.getElementById('vertical-tabs').classList.add('hidden');
   document.getElementById('fb-status').classList.add('hidden');
+  document.getElementById('admin-btn').classList.add('hidden');
+  document.getElementById('access-banner').classList.add('hidden');
+  currentUser = null;
   renderNav();
+}
+
+let currentUser = null;
+
+async function initCurrentUser() {
+  const adminBtn = document.getElementById('admin-btn');
+  const banner = document.getElementById('access-banner');
+  try {
+    currentUser = await API.getMe();
+    adminBtn.classList.toggle('hidden', !currentUser.isAdmin);
+    banner.classList.toggle('hidden', currentUser.isAdmin || currentUser.hasSearchAccess);
+  } catch (err) {
+    currentUser = null;
+    adminBtn.classList.add('hidden');
+    banner.classList.add('hidden');
+  }
 }
 
 function showDashboard() {
@@ -264,8 +283,56 @@ function showDashboard() {
   dashboardView.classList.remove('hidden');
   renderNav();
   initFbStatus();
+  initCurrentUser();
   loadSavedSearches();
   loadFavorites();
+}
+
+// --- Админка ---
+const adminModal = document.getElementById('admin-modal');
+document.getElementById('admin-btn').addEventListener('click', async () => {
+  adminModal.classList.remove('hidden');
+  await loadAdminUsers();
+});
+document.getElementById('admin-close').addEventListener('click', () => adminModal.classList.add('hidden'));
+adminModal.addEventListener('click', (e) => { if (e.target === adminModal) adminModal.classList.add('hidden'); });
+
+async function loadAdminUsers() {
+  const body = document.getElementById('admin-users-body');
+  body.innerHTML = '<tr><td colspan="3">Загружаем…</td></tr>';
+  try {
+    const users = await API.adminListUsers();
+    body.innerHTML = users.map((u) => {
+      const isAdmin = u.role === 'admin';
+      const hasAccess = isAdmin || Boolean(u.plan_active);
+      return `
+        <tr data-id="${u.id}">
+          <td>${escapeHtml(u.email)}</td>
+          <td class="${isAdmin ? 'role-admin' : ''}">${isAdmin ? 'Админ' : 'Пользователь'}</td>
+          <td>
+            <button type="button" class="access-toggle ${hasAccess ? 'on' : ''}" ${isAdmin ? 'disabled' : ''}>
+              ${hasAccess ? '✅ Включён' : '⛔ Выключен'}
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    body.querySelectorAll('.access-toggle:not(:disabled)').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        const id = e.target.closest('tr').dataset.id;
+        const nowOn = btn.classList.contains('on');
+        try {
+          await API.adminSetAccess(id, !nowOn);
+          loadAdminUsers();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="3">${escapeHtml(err.message)}</td></tr>`;
+  }
 }
 
 // --- Авторизация ---

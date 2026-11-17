@@ -14,6 +14,7 @@
     <div id="vertical-tabs" class="vertical-tabs hidden"></div>
     <nav id="nav" class="nav">
       <span id="fb-status" class="fb-status hidden"></span>
+      <button type="button" id="admin-btn" class="hidden">⚙️ Админка</button>
       <span id="nav-buttons"></span>
     </nav>
   </header>
@@ -74,6 +75,9 @@
   <!-- Основной экран -->
   <section id="dashboard-view" class="view hidden">
     <aside class="sidebar">
+      <div id="access-banner" class="access-banner hidden">
+        🔒 Доступ к поиску объявлений пока ограничен. Напиши администратору, чтобы его включили.
+      </div>
       <form id="search-form">
         <h3 class="filter-title">Ключевое слово</h3>
         <input type="text" id="search-q" class="filter-input" placeholder="Бренд, страница, товар…" required />
@@ -138,6 +142,21 @@
     <div class="modal-card modal-card-wide">
       <button type="button" class="modal-close" id="preview-close">✕</button>
       <div id="preview-body"></div>
+    </div>
+  </div>
+
+  <!-- Админ-панель: управление доступом пользователей к поиску -->
+  <div id="admin-modal" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-wide">
+      <button type="button" class="modal-close" id="admin-close">✕</button>
+      <h3>Пользователи</h3>
+      <p class="verify-hint">Доступ к поиску объявлений включается вручную — задел под платную подписку.</p>
+      <table class="admin-table">
+        <thead>
+          <tr><th>Email</th><th>Роль</th><th>Доступ к поиску</th></tr>
+        </thead>
+        <tbody id="admin-users-body"></tbody>
+      </table>
     </div>
   </div>
 

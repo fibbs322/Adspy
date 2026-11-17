@@ -25,6 +25,19 @@ const FIELDS = [
   'languages',
 ].join(',');
 
+// Доступ к поиску объявлений — админы всегда, остальные только если им явно включили доступ
+// (задел под платную подписку). Проверяем свежие данные из базы, а не поле из JWT, чтобы
+// включение/отключение доступа админом срабатывало сразу, без повторного логина пользователя.
+function requireSearchAccess(req, res, next) {
+  const user = db.prepare('SELECT role, plan_active FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(401).json({ error: 'Пользователь не найден' });
+  if (user.role === 'admin' || user.plan_active) return next();
+  return res.status(403).json({
+    error: 'Доступ к поиску объявлений пока ограничен. Напиши администратору сервиса, чтобы его включили.',
+    accessDenied: true,
+  });
+}
+
 function daysBetween(fromIso, toIso) {
   if (!fromIso) return null;
   const from = new Date(fromIso).getTime();
@@ -35,7 +48,7 @@ function daysBetween(fromIso, toIso) {
 
 // Поиск объявлений: по ключевому слову или названию страницы.
 // GET /api/ads/search?q=nike&country=US&active=true
-router.get('/search', requireAuth, async (req, res) => {
+router.get('/search', requireAuth, requireSearchAccess, async (req, res) => {
   const { q, country, countries, active = 'true', vertical } = req.query;
 
   if (!q || !q.trim()) {

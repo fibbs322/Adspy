@@ -39,6 +39,13 @@ if (!userColumns.includes('verification_expires')) {
   db.exec('ALTER TABLE users ADD COLUMN verification_expires TEXT');
 }
 
+// Доступ к поиску объявлений (платная/ограниченная функция). Админы имеют доступ всегда,
+// независимо от этого флага. Обычные новые пользователи по умолчанию доступа не имеют —
+// администратор включает его вручную (задел под будущую платную подписку).
+if (!userColumns.includes('plan_active')) {
+  db.exec('ALTER TABLE users ADD COLUMN plan_active INTEGER NOT NULL DEFAULT 0');
+}
+
 // Сохранённые поисковые запросы пользователя (чтобы следить за конкурентами)
 db.exec(`
 CREATE TABLE IF NOT EXISTS saved_searches (
