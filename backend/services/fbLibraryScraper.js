@@ -50,13 +50,13 @@ function cookieHeader() {
   return Object.entries(cookieJar).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
-function buildUrl({ country, keyword, activeStatus }) {
+function buildUrl({ country, keyword, activeStatus, mediaType }) {
   const params = new URLSearchParams({
     active_status: activeStatus === 'all' ? 'all' : 'active',
     ad_type: 'all',
     country: country || 'ALL',
     is_targeted_country: 'false',
-    media_type: 'all',
+    media_type: mediaType === 'image' || mediaType === 'video' ? mediaType : 'all',
     search_type: 'keyword_unordered',
   });
   if (keyword) params.set('q', keyword);
@@ -105,6 +105,32 @@ function toIso(unixSeconds) {
   return new Date(unixSeconds * 1000).toISOString();
 }
 
+// Определяет тип медиа и достаёт превью/видео из одного "collated_results" элемента.
+// Facebook хранит медиа по-разному в зависимости от формата объявления: у простых
+// (IMAGE/VIDEO) — в snapshot.images[]/snapshot.videos[], у динамических (DCO/DPA/
+// карусели) — внутри snapshot.cards[]. Проверяем оба места.
+function extractMedia(node) {
+  const snapshot = node.snapshot || {};
+  const cards = snapshot.cards || [];
+  const firstCard = cards[0] || {};
+  const topVideo = (snapshot.videos || [])[0] || null;
+  const topImage = (snapshot.images || [])[0] || null;
+
+  const videoUrl = (topVideo && (topVideo.video_hd_url || topVideo.video_sd_url))
+    || firstCard.video_hd_url || firstCard.video_sd_url || null;
+  const videoPreview = (topVideo && topVideo.video_preview_image_url) || firstCard.video_preview_image_url || null;
+  const imageUrl = (topImage && (topImage.original_image_url || topImage.resized_image_url))
+    || firstCard.original_image_url || firstCard.resized_image_url || null;
+
+  let mediaType = 'unknown';
+  if (snapshot.display_format === 'VIDEO' || videoUrl) mediaType = 'video';
+  else if (imageUrl || snapshot.display_format === 'IMAGE' || snapshot.display_format === 'DPA' || snapshot.display_format === 'CAROUSEL') mediaType = 'image';
+
+  const thumbnailUrl = videoPreview || imageUrl || snapshot.page_profile_picture_url || null;
+
+  return { mediaType, thumbnailUrl, videoUrl };
+}
+
 // Преобразует один "collated_results" элемент в форму, которую ожидает
 // остальной код в routes/ads.js (такую же, как отдаёт официальный Graph API
 // ads_archive — id, page_name, ad_creative_bodies, ...), чтобы не трогать
@@ -116,6 +142,7 @@ function mapNode(node) {
   const body = firstCard.body || (snapshot.body && snapshot.body.text) || null;
   const title = firstCard.title || snapshot.title || null;
   const linkDescription = firstCard.link_description || snapshot.link_description || null;
+  const media = extractMedia(node);
 
   return {
     id: node.ad_archive_id,
@@ -130,6 +157,9 @@ function mapNode(node) {
     ad_snapshot_url: `https://www.facebook.com/ads/library/?id=${node.ad_archive_id}`,
     publisher_platforms: node.publisher_platform || [],
     languages: [],
+    media_type: media.mediaType,
+    thumbnail_url: media.thumbnailUrl,
+    video_url: media.videoUrl,
   };
 }
 
@@ -162,8 +192,8 @@ async function solveClientChallenge(challengePath, refererUrl) {
 
 // Выполняет один поисковый запрос к публичной библиотеке.
 // Возвращает { ads, count, captchaRequired, blocked }.
-async function scrapeOnce({ country, keyword, activeStatus }, attempt = 0) {
-  const url = buildUrl({ country, keyword, activeStatus });
+async function scrapeOnce({ country, keyword, activeStatus, mediaType }, attempt = 0) {
+  const url = buildUrl({ country, keyword, activeStatus, mediaType });
   const headers = { ...BROWSER_HEADERS };
   const cookies = cookieHeader();
   if (cookies) headers['Cookie'] = cookies;
@@ -179,7 +209,7 @@ async function scrapeOnce({ country, keyword, activeStatus }, attempt = 0) {
       const challengePath = extractChallengeUrl(bodySnippet);
       if (challengePath) {
         const solved = await solveClientChallenge(challengePath, url);
-        if (solved) return scrapeOnce({ country, keyword, activeStatus }, attempt + 1);
+        if (solved) return scrapeOnce({ country, keyword, activeStatus, mediaType }, attempt + 1);
       }
     }
 
@@ -222,14 +252,14 @@ async function scrapeOnce({ country, keyword, activeStatus }, attempt = 0) {
 
 // Поиск по нескольким странам и/или нескольким ключевым словам (для режима
 // "Все вертикали") одним вызовом, с объединением и удалением дублей по id.
-async function scrapeAdLibrary({ countries, keywords, activeStatus }) {
+async function scrapeAdLibrary({ countries, keywords, activeStatus, mediaType }) {
   const countryList = (countries && countries.length ? countries : ['ALL']);
   const keywordList = (keywords && keywords.length ? keywords : [null]);
 
   const tasks = [];
   for (const country of countryList) {
     for (const keyword of keywordList) {
-      tasks.push(scrapeOnce({ country, keyword, activeStatus }));
+      tasks.push(scrapeOnce({ country, keyword, activeStatus, mediaType }));
     }
   }
 

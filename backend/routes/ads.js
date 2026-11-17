@@ -93,7 +93,7 @@ const ALL_VERTICALS_SEED_KEYWORDS = ['shop', 'dating', 'crypto', 'game', 'beauty
 // получить вперемешку объявления разных ниш — сделать несколько параллельных запросов).
 router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) => {
   try {
-  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo, allVerticals } = req.query;
+  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo, allVerticals, mediaType } = req.query;
 
   const keyword = (q || '').trim();
   const pageQuery = (page || '').trim();
@@ -137,6 +137,7 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
       countries: countryList,
       keywords: keywordsForScrape,
       activeStatus: active === 'false' ? 'all' : 'active',
+      mediaType: mediaType === 'image' || mediaType === 'video' ? mediaType : 'all',
     });
   } catch (err) {
     console.error('FB scrape error:', err);
@@ -198,6 +199,9 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
       snapshot_url: ad.ad_snapshot_url,
       platforms: ad.publisher_platforms || [],
       languages: ad.languages || [],
+      media_type: ad.media_type || 'unknown',
+      thumbnail_url: ad.thumbnail_url || null,
+      video_url: ad.video_url || null,
       launch_date: ad.ad_creation_time || ad.ad_delivery_start_time || null,
       stop_date: ad.ad_delivery_stop_time || null,
       is_active: !ad.ad_delivery_stop_time,

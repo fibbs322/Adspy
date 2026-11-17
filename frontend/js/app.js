@@ -274,11 +274,14 @@ async function initCurrentUser() {
   try {
     currentUser = await API.getMe();
     adminBtn.classList.toggle('hidden', !currentUser.isAdmin);
-    banner.classList.toggle('hidden', currentUser.isAdmin || currentUser.hasSearchAccess);
+    const hasAccess = currentUser.isAdmin || currentUser.hasSearchAccess;
+    banner.classList.toggle('hidden', hasAccess);
+    return hasAccess;
   } catch (err) {
     currentUser = null;
     adminBtn.classList.add('hidden');
     banner.classList.add('hidden');
+    return false;
   }
 }
 
@@ -287,9 +290,13 @@ function showDashboard() {
   dashboardView.classList.remove('hidden');
   renderNav();
   initFbStatus();
-  initCurrentUser();
   loadSavedSearches();
   loadFavorites();
+  // Сразу показываем какие-то креативы при входе, без ручного нажатия "Найти" —
+  // по умолчанию вертикаль "Все" уже выбрана, этого достаточно для первого запроса.
+  initCurrentUser().then((hasAccess) => {
+    if (hasAccess && !lastResults) searchForm.requestSubmit();
+  });
 }
 
 // --- Админка ---
@@ -440,6 +447,20 @@ function updateStat(id, value) {
   if (el) el.textContent = value;
 }
 
+function thumbHtml(ad) {
+  if (ad.media_type === 'video' && (ad.video_url || ad.thumbnail_url)) {
+    const poster = ad.thumbnail_url ? ` poster="${escapeHtml(ad.thumbnail_url)}"` : '';
+    if (ad.video_url) {
+      return `<video src="${escapeHtml(ad.video_url)}"${poster} muted loop playsinline preload="metadata"></video><span class="play-badge">▶</span>`;
+    }
+    return `<img src="${escapeHtml(ad.thumbnail_url)}" loading="lazy" alt="" /><span class="play-badge">▶</span>`;
+  }
+  if (ad.thumbnail_url) {
+    return `<img src="${escapeHtml(ad.thumbnail_url)}" loading="lazy" alt="" />`;
+  }
+  return '<div class="no-media">Нет превью</div>';
+}
+
 function renderAds(payload) {
   const { ads, count, volume_by_page } = payload;
   updateStat('stat-results', count || 0);
@@ -461,6 +482,7 @@ function renderAds(payload) {
 
   resultsEl.innerHTML = ads.map((ad) => `
     <div class="ad-card" data-ad='${escapeHtml(JSON.stringify(ad))}'>
+      <div class="thumb-wrap">${thumbHtml(ad)}</div>
       <div class="card-top">
         ${vInfo ? `<span class="v-badge" style="background:${vInfo.color}">${vInfo.label}</span>` : '<span></span>'}
         <div class="platforms">${(ad.platforms || []).slice(0, 3).map((p) => `<span>${escapeHtml(p)}</span>`).join('')}</div>
@@ -501,6 +523,22 @@ function renderAds(payload) {
     });
   });
 
+  resultsEl.querySelectorAll('.thumb-wrap').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      const card = e.target.closest('.ad-card');
+      const ad = JSON.parse(card.dataset.ad);
+      openPreview(ad);
+    });
+    el.addEventListener('mouseenter', () => {
+      const video = el.querySelector('video');
+      if (video) video.play().catch(() => {});
+    });
+    el.addEventListener('mouseleave', () => {
+      const video = el.querySelector('video');
+      if (video) { video.pause(); video.currentTime = 0; }
+    });
+  });
+
   resultsEl.querySelectorAll('.fav-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       const card = e.target.closest('.ad-card');
@@ -524,9 +562,21 @@ function renderAds(payload) {
   });
 }
 
+function previewMediaHtml(ad) {
+  if (ad.media_type === 'video' && ad.video_url) {
+    const poster = ad.thumbnail_url ? ` poster="${escapeHtml(ad.thumbnail_url)}"` : '';
+    return `<video src="${escapeHtml(ad.video_url)}"${poster} controls playsinline style="width:100%;border-radius:8px;margin-bottom:12px;max-height:480px;background:#000"></video>`;
+  }
+  if (ad.thumbnail_url) {
+    return `<img src="${escapeHtml(ad.thumbnail_url)}" alt="" style="width:100%;border-radius:8px;margin-bottom:12px;max-height:480px;object-fit:contain;background:#000" />`;
+  }
+  return '';
+}
+
 function openPreview(ad) {
   const vInfo = activeVertical ? verticalInfo(activeVertical) : null;
   document.getElementById('preview-body').innerHTML = `
+    ${previewMediaHtml(ad)}
     ${vInfo ? `<span class="v-badge" style="background:${vInfo.color}">${vInfo.label}</span>` : ''}
     <div class="page-name">${escapeHtml(ad.page_name || 'Без названия')}</div>
     <div class="creative-text">${escapeHtml(ad.creative_text || ad.link_title || 'Текст креатива недоступен')}</div>
@@ -613,7 +663,9 @@ searchForm.addEventListener('submit', async (e) => {
   const dateFrom = document.getElementById('search-date-from').value || null;
   const dateTo = document.getElementById('search-date-to').value || null;
   const sort = document.getElementById('search-sort').value;
-  lastQuery = { q, page, countries: [...selectedCountries], active, vertical: activeVertical, dateFrom, dateTo, sort, allVerticals: usedAllVerticals };
+  const mediaTypeInput = document.querySelector('input[name="media-type"]:checked');
+  const mediaType = mediaTypeInput ? mediaTypeInput.value : 'all';
+  lastQuery = { q, page, countries: [...selectedCountries], active, vertical: activeVertical, dateFrom, dateTo, sort, allVerticals: usedAllVerticals, mediaType };
 
   resultsEl.innerHTML = '<div class="empty-state">Ищем…</div>';
   try {
