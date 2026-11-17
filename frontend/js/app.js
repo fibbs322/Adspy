@@ -10,6 +10,7 @@ const VERTICALS = [
   { id: 'saas', label: 'SaaS/Приложения', color: 'var(--v-saas)' },
   { id: 'education', label: 'Образование', color: 'var(--v-education)' },
   { id: 'travel', label: 'Путешествия', color: 'var(--v-travel)' },
+  { id: 'gambling', label: 'Гемблинг', color: 'var(--v-gambling)' },
   { id: 'other', label: 'Другое', color: 'var(--v-other)' },
 ];
 function verticalInfo(id) {
