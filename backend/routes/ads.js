@@ -46,13 +46,45 @@ function daysBetween(fromIso, toIso) {
   return Math.max(0, Math.round((to - from) / (1000 * 60 * 60 * 24)));
 }
 
-// Поиск объявлений: по ключевому слову или названию страницы.
-// GET /api/ads/search?q=nike&country=US&active=true
-router.get('/search', requireAuth, requireSearchAccess, async (req, res) => {
-  const { q, country, countries, active = 'true', vertical } = req.query;
+// Принимает число (готовый Page ID) или ссылку вида facebook.com/NikeRunning — вытаскивает
+// последний сегмент пути и просит Graph API превратить его в числовой Page ID.
+async function resolvePageId(rawInput) {
+  const trimmed = rawInput.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
 
-  if (!q || !q.trim()) {
-    return res.status(400).json({ error: 'Укажи поисковый запрос (параметр q)' });
+  let candidate = trimmed.replace(/^@/, '');
+  try {
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const url = new URL(withProtocol);
+    if (url.hostname.includes('facebook.com')) {
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts.length) candidate = parts[parts.length - 1];
+    }
+  } catch (_) {
+    // не похоже на URL — используем как есть (например, просто "nike")
+  }
+
+  const params = new URLSearchParams({ fields: 'id,name', access_token: process.env.FB_ACCESS_TOKEN });
+  const res = await fetch(`https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(candidate)}?${params.toString()}`);
+  const data = await res.json();
+  if (!res.ok || !data.id) {
+    throw new Error(data?.error?.message || `Не удалось найти страницу Facebook по «${rawInput}»`);
+  }
+  return data.id;
+}
+
+// Поиск объявлений: по ключевому слову и/или по конкретной fan page.
+// GET /api/ads/search?q=nike&countries=US,UA&active=true&page=facebook.com/nike&dateFrom=2026-01-01&dateTo=2026-02-01
+router.get('/search', requireAuth, requireSearchAccess, async (req, res) => {
+  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo } = req.query;
+
+  const keyword = (q || '').trim();
+  const pageQuery = (page || '').trim();
+
+  if (!keyword && !pageQuery) {
+    return res.status(400).json({
+      error: 'Укажи ключевое слово или fan page — у Meta Ad Library API обязателен хотя бы один из этих двух параметров.',
+    });
   }
 
   if (!process.env.FB_ACCESS_TOKEN || process.env.FB_ACCESS_TOKEN === 'paste_your_facebook_access_token_here') {
@@ -72,15 +104,27 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res) => {
   if (countryList.includes('ALL')) countryList = ['ALL'];
   if (countryList.length === 0) countryList = ['US'];
 
+  let pageId = null;
+  if (pageQuery) {
+    try {
+      pageId = await resolvePageId(pageQuery);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
   const params = new URLSearchParams({
     access_token: process.env.FB_ACCESS_TOKEN,
-    search_terms: q.trim(),
     ad_type: 'ALL',
     ad_reached_countries: JSON.stringify(countryList),
     ad_active_status: active === 'false' ? 'ALL' : 'ACTIVE',
     fields: FIELDS,
     limit: '50',
   });
+  if (keyword) params.set('search_terms', keyword);
+  if (pageId) params.set('search_page_ids', JSON.stringify([pageId]));
+  if (dateFrom) params.set('ad_delivery_date_min', dateFrom);
+  if (dateTo) params.set('ad_delivery_date_max', dateTo);
 
   try {
     const fbRes = await fetch(`${FB_BASE_URL}?${params.toString()}`);
@@ -125,6 +169,7 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res) => {
         languages: ad.languages || [],
         launch_date: ad.ad_creation_time || ad.ad_delivery_start_time || null,
         stop_date: ad.ad_delivery_stop_time || null,
+        is_active: !ad.ad_delivery_stop_time,
         running_days: daysBetween(ad.ad_creation_time || ad.ad_delivery_start_time, ad.ad_delivery_stop_time),
         first_tracked_by_us_at: cached?.first_tracked_at || now,
         times_seen_by_us: cached?.times_seen || 1,

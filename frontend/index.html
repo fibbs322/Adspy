@@ -79,8 +79,12 @@
         🔒 Доступ к поиску объявлений пока ограничен. Напиши администратору, чтобы его включили.
       </div>
       <form id="search-form">
-        <h3 class="filter-title">Ключевое слово</h3>
-        <input type="text" id="search-q" class="filter-input" placeholder="Бренд, страница, товар…" required />
+        <h3 class="filter-title">Ключевое слово <span class="filter-hint">(необязательно)</span></h3>
+        <input type="text" id="search-q" class="filter-input" placeholder="Бренд, товар, фраза в тексте объявления…" />
+
+        <h3 class="filter-title">Fan Page <span class="filter-hint">(ссылка или ID, необязательно)</span></h3>
+        <input type="text" id="search-page" class="filter-input" placeholder="facebook.com/nike или ID страницы" />
+        <p class="field-hint">Можно искать по одному только ключевому слову, по одной только странице, или по обоим сразу — но хотя бы одно из двух заполнить нужно, это требование самого Facebook API.</p>
 
         <h3 class="filter-title">Вертикаль <span class="filter-hint">(ваш тег, для сортировки)</span></h3>
         <div id="vertical-filter" class="vertical-filter"></div>
@@ -94,12 +98,28 @@
           <div class="multiselect-panel hidden" id="country-panel"></div>
         </div>
 
+        <h3 class="filter-title">Дата запуска <span class="filter-hint">(необязательно)</span></h3>
+        <div class="date-range">
+          <input type="date" id="search-date-from" class="filter-input" />
+          <span class="date-sep">—</span>
+          <input type="date" id="search-date-to" class="filter-input" />
+        </div>
+
         <label class="checkbox-label filter-checkbox">
           <input type="checkbox" id="search-active" checked /> только активные сейчас
         </label>
 
+        <h3 class="filter-title">Сортировка</h3>
+        <select id="search-sort" class="filter-input">
+          <option value="date_desc">Сначала новые</option>
+          <option value="date_asc">Сначала старые</option>
+          <option value="running_desc">Дольше всего активны</option>
+          <option value="volume_desc">По объёму рекламодателя</option>
+        </select>
+
         <button type="submit" class="btn-primary">🔎 Найти креативы</button>
         <button type="button" id="save-search-btn" class="btn-secondary">💾 Сохранить поиск</button>
+        <p class="error" id="search-form-error"></p>
       </form>
 
       <div class="stats-box" id="stats-box">

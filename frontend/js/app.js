@@ -459,12 +459,16 @@ function renderAds(payload) {
         ${vInfo ? `<span class="v-badge" style="background:${vInfo.color}">${vInfo.label}</span>` : '<span></span>'}
         <div class="platforms">${(ad.platforms || []).slice(0, 3).map((p) => `<span>${escapeHtml(p)}</span>`).join('')}</div>
       </div>
-      <div class="page-name">${escapeHtml(ad.page_name || 'Без названия')}</div>
-      <div class="badge">Креативов у страницы: ${volume_by_page[ad.page_name || ad.page_id] || 1}</div>
+      <button type="button" class="page-link" title="Показать все найденные креативы этой страницы">${escapeHtml(ad.page_name || 'Без названия')}</button>
+      <div class="badge">Креативов у страницы (в этой выдаче): ${volume_by_page[ad.page_name || ad.page_id] || 1}</div>
       <div class="creative-text">${escapeHtml(ad.creative_text || ad.link_title || 'Текст креатива недоступен')}</div>
       <div class="meta-row">
         <span>Запуск: ${formatDate(ad.launch_date)}</span>
         <span class="running-days">${ad.running_days != null ? ad.running_days + ' дн.' : '—'}</span>
+      </div>
+      <div class="status-row">
+        <span class="status-pill ${ad.is_active ? 'active' : 'stopped'}">${ad.is_active ? '🟢 Активна' : '⏹ Остановлена'}</span>
+        <span>${ad.stop_date ? 'до ' + formatDate(ad.stop_date) : ''}</span>
       </div>
       <div class="actions">
         <button class="preview-btn">🔍 Превью</button>
@@ -473,6 +477,15 @@ function renderAds(payload) {
       </div>
     </div>
   `).join('');
+
+  resultsEl.querySelectorAll('.page-link').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const card = e.target.closest('.ad-card');
+      const ad = JSON.parse(card.dataset.ad);
+      if (!ad.page_id) { alert('У этого объявления нет ID страницы от Facebook.'); return; }
+      searchByPage(ad.page_id, ad.page_name);
+    });
+  });
 
   resultsEl.querySelectorAll('.preview-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -516,11 +529,24 @@ function openPreview(ad) {
       <span>Запуск: ${formatDate(ad.launch_date)}</span>
       <span class="running-days">${ad.running_days != null ? ad.running_days + ' дн.' : '—'}</span>
     </div>
+    <div class="status-row" style="margin-bottom:10px">
+      <span class="status-pill ${ad.is_active ? 'active' : 'stopped'}">${ad.is_active ? '🟢 Активна' : '⏹ Остановлена'}</span>
+      <span>${ad.stop_date ? 'Остановлена: ' + formatDate(ad.stop_date) : ''}</span>
+    </div>
     <div class="platforms">${(ad.platforms || []).map((p) => `<span>${escapeHtml(p)}</span>`).join('')}</div>
     <div class="actions" style="margin-top:14px">
       <a href="${ad.snapshot_url || '#'}" target="_blank" rel="noopener">Открыть оригинал в Facebook</a>
+      <button type="button" id="preview-page-btn">📄 Все креативы этой страницы</button>
     </div>
   `;
+  const pageBtn = document.getElementById('preview-page-btn');
+  if (pageBtn) {
+    pageBtn.addEventListener('click', () => {
+      document.getElementById('preview-modal').classList.add('hidden');
+      if (!ad.page_id) { alert('У этого объявления нет ID страницы от Facebook.'); return; }
+      searchByPage(ad.page_id, ad.page_name);
+    });
+  }
   document.getElementById('preview-modal').classList.remove('hidden');
 }
 document.getElementById('preview-close').addEventListener('click', () => {
@@ -531,30 +557,78 @@ document.getElementById('preview-modal').addEventListener('click', (e) => {
 });
 
 let lastQuery = null;
+let lastResults = null;
+
+function sortAds(ads, volumeByPage, sortMode) {
+  const list = [...ads];
+  const volumeOf = (ad) => volumeByPage[ad.page_name || ad.page_id] || 0;
+  switch (sortMode) {
+    case 'date_asc':
+      return list.sort((a, b) => new Date(a.launch_date || 0) - new Date(b.launch_date || 0));
+    case 'running_desc':
+      return list.sort((a, b) => (b.running_days ?? -1) - (a.running_days ?? -1));
+    case 'volume_desc':
+      return list.sort((a, b) => volumeOf(b) - volumeOf(a));
+    case 'date_desc':
+    default:
+      return list.sort((a, b) => new Date(b.launch_date || 0) - new Date(a.launch_date || 0));
+  }
+}
 
 searchForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  const errEl = document.getElementById('search-form-error');
+  errEl.textContent = '';
+
   const q = document.getElementById('search-q').value.trim();
+  const page = document.getElementById('search-page').value.trim();
+  if (!q && !page) {
+    errEl.textContent = 'Укажи ключевое слово или fan page — это требование Facebook API, хотя бы одно из двух.';
+    return;
+  }
+
   const active = document.getElementById('search-active').checked;
-  lastQuery = { q, countries: [...selectedCountries], active, vertical: activeVertical };
+  const dateFrom = document.getElementById('search-date-from').value || null;
+  const dateTo = document.getElementById('search-date-to').value || null;
+  const sort = document.getElementById('search-sort').value;
+  lastQuery = { q, page, countries: [...selectedCountries], active, vertical: activeVertical, dateFrom, dateTo, sort };
 
   resultsEl.innerHTML = '<div class="empty-state">Ищем…</div>';
   try {
     const data = await API.searchAds(lastQuery);
+    lastResults = data;
+    data.ads = sortAds(data.ads || [], data.volume_by_page || {}, sort);
     renderAds(data);
   } catch (err) {
     resultsEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
   }
 });
 
+document.getElementById('search-sort').addEventListener('change', () => {
+  if (!lastResults) return;
+  const sort = document.getElementById('search-sort').value;
+  lastQuery.sort = sort;
+  lastResults.ads = sortAds(lastResults.ads || [], lastResults.volume_by_page || {}, sort);
+  renderAds(lastResults);
+});
+
+// Клик по названию страницы объявления — показывает все найденные у неё креативы
+// (поиск по search_page_ids вместо ключевого слова).
+function searchByPage(pageId, pageName) {
+  document.getElementById('search-q').value = '';
+  document.getElementById('search-page').value = pageId;
+  document.getElementById('search-form-error').textContent = '';
+  searchForm.requestSubmit();
+}
+
 // --- Модалка "Сохранить поиск" (вместо нативного prompt()) ---
 const saveModal = document.getElementById('save-search-modal');
 document.getElementById('save-search-btn').addEventListener('click', () => {
-  if (!lastQuery || !lastQuery.q) {
+  if (!lastQuery || (!lastQuery.q && !lastQuery.page)) {
     alert('Сначала выполни поиск.');
     return;
   }
-  document.getElementById('save-search-label').value = lastQuery.q;
+  document.getElementById('save-search-label').value = lastQuery.q || lastQuery.page;
   populateVerticalSelect(document.getElementById('save-search-vertical'), lastQuery.vertical);
   saveModal.classList.remove('hidden');
 });
@@ -594,7 +668,11 @@ async function loadSavedSearches() {
     listEl.querySelectorAll('.run-saved').forEach((el, idx) => {
       el.addEventListener('click', () => {
         const qp = items[idx].query_params;
-        document.getElementById('search-q').value = qp.q;
+        document.getElementById('search-q').value = qp.q || '';
+        document.getElementById('search-page').value = qp.page || '';
+        document.getElementById('search-date-from').value = qp.dateFrom || '';
+        document.getElementById('search-date-to').value = qp.dateTo || '';
+        document.getElementById('search-sort').value = qp.sort || 'date_desc';
         setSelectedCountries(qp.countries || (qp.country ? [qp.country] : ['US']));
         document.getElementById('search-active').checked = qp.active;
         activeVertical = qp.vertical || null;
