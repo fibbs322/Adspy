@@ -173,6 +173,19 @@ const VERTICAL_SEED_KEYWORDS = {
     // рассказывает историю находки/выигрыша, а не прямая реклама бренда казино.
     'grandma wins jackpot', 'local woman wins casino', 'casino glitch', 'secret casino trick',
     'casino hack app', 'i tried this casino', 'won on my phone', 'retired slot trick',
+    // тир-3 гео (Бразилия/LatAm, ЮВА, Индия, Африка) — отдельный и очень объёмный пласт:
+    // в этих гео креативы маскируются под МЕСТНЫЕ банки/платёжные приложения (не PayPal/
+    // Amazon, как в тир-1) — "Nubank slot", "Pix slot" и т.п. — плюс локальные названия
+    // самих игр (в Бразилии почти весь объём идёт под именем "jogo do tigrinho"/"Fortune
+    // Tiger", а не "slots" вообще) и локальные операторские бренды, которые гоняют сотни
+    // объявлений с одной страницы (подтверждено новостными расследованиями про Meta Ads —
+    // PH988 на Филиппинах, Nex855 в Таиланде, MYB77 в Малайзии). Сторителлинг здесь тоже
+    // свой: инфлюенсер/"бабушка" играет и выигрывает (ср. "Vovó dos Slots" в Бразилии).
+    'nubank slot', 'pix slot', 'mercado pago slot', 'picpay slot', 'caixa slot', 'itau slot',
+    'fortune tiger', 'jogo do tigrinho', 'tigrinho', 'lucky tiger slot',
+    'gcash slot', 'paytm slot', 'phonepe slot', 'google pay slot', 'mpesa slot',
+    'ph988', 'nex855', 'myb77',
+    'vovo dos slots', 'ganhos reais casino', 'bono sin deposito', 'casino en linea gratis',
   ],
   other: [],
 };
