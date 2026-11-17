@@ -105,9 +105,12 @@
           <input type="date" id="search-date-to" class="filter-input" />
         </div>
 
-        <label class="checkbox-label filter-checkbox">
-          <input type="checkbox" id="search-active" checked /> только активные сейчас
-        </label>
+        <h3 class="filter-title">Статус объявлений</h3>
+        <div class="media-type-filter" id="active-status-filter">
+          <label><input type="radio" name="active-status" value="active" checked /> Только активные</label>
+          <label><input type="radio" name="active-status" value="inactive" /> Только неактивные</label>
+          <label><input type="radio" name="active-status" value="all" /> Все</label>
+        </div>
 
         <h3 class="filter-title">Формат креатива</h3>
         <div class="media-type-filter" id="media-type-filter">

@@ -898,7 +898,10 @@ searchForm.addEventListener('submit', async (e) => {
     }
   }
 
-  const active = document.getElementById('search-active').checked;
+  // Статус объявлений: active/inactive/all вместо старого чекбокса "только активные"
+  // (у Facebook API active_status — это как раз три значения, а не булево).
+  const activeStatusInput = document.querySelector('input[name="active-status"]:checked');
+  const active = activeStatusInput ? activeStatusInput.value : 'active';
   const dateFrom = document.getElementById('search-date-from').value || null;
   const dateTo = document.getElementById('search-date-to').value || null;
   const sort = document.getElementById('search-sort').value;
@@ -1001,7 +1004,15 @@ function applyQueryToForm(qp) {
   document.getElementById('search-date-to').value = qp.dateTo || '';
   document.getElementById('search-sort').value = qp.sort || 'date_desc';
   setSelectedCountries(qp.countries || (qp.country ? [qp.country] : ['US']));
-  document.getElementById('search-active').checked = qp.active;
+  // Старые сохранённые поиски хранили active как true/false (чекбокс) — приводим к
+  // новым трём значениям: true → active, false → all (раньше false означало "без
+  // фильтра по статусу"), новые запросы уже хранят строку active/inactive/all напрямую.
+  let activeStatusValue = qp.active;
+  if (activeStatusValue === true || activeStatusValue === 'true') activeStatusValue = 'active';
+  else if (activeStatusValue === false || activeStatusValue === 'false') activeStatusValue = 'all';
+  else if (!activeStatusValue) activeStatusValue = 'active';
+  const activeRadio = document.querySelector(`input[name="active-status"][value="${activeStatusValue}"]`);
+  if (activeRadio) activeRadio.checked = true;
   const mediaRadio = document.querySelector(`input[name="media-type"][value="${qp.mediaType || 'all'}"]`);
   if (mediaRadio) mediaRadio.checked = true;
   document.getElementById('search-daily-impressions').value = qp.dailyImpressions || 1000;

@@ -33,13 +33,23 @@ function cpmForCountries(countries) {
   return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100;
 }
 
+// Статус объявлений — раньше был чекбокс "только активные" (булево), теперь три значения
+// (active/inactive/all), как у самого Facebook Ad Library API (active_status: ACTIVE/
+// INACTIVE/ALL). Приводим и новые строки, и старые булевы значения (из уже сохранённых
+// поисков в БД — там query_params хранится как есть, с прошлым форматом) к одному из трёх.
+function resolveActiveStatus(active) {
+  if (active === 'inactive') return 'inactive';
+  if (active === 'all' || active === 'false' || active === false) return 'all';
+  return 'active'; // по умолчанию и для 'active'/'true'/true/не задано
+}
+
 // Строит ссылку на тот же поиск на настоящей публичной странице facebook.com/ads/library,
 // чтобы можно было одной кнопкой открыть и сверить результат в оригинальном интерфейсе Facebook.
 // У самой страницы нет мульти-слов через OR, поэтому для фан-аута по нескольким анкорным словам
 // (вертикаль/allVerticals) берём первое слово — просто как стартовую точку для ручной проверки.
 function buildFbLibraryUrl({ countries, keywordsForScrape, pageIdForScrape, active, mediaType }) {
   const params = new URLSearchParams({
-    active_status: active === 'false' ? 'all' : 'active',
+    active_status: resolveActiveStatus(active),
     ad_type: 'all',
     country: (countries && countries[0]) || 'ALL',
     is_targeted_country: 'false',
@@ -208,7 +218,8 @@ const ALL_VERTICALS_SEED_KEYWORDS = Object.values(VERTICAL_SEED_KEYWORDS)
 // получить вперемешку объявления разных ниш — сделать несколько параллельных запросов).
 router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) => {
   try {
-  const { q, country, countries, active = 'true', vertical, page, dateFrom, dateTo, allVerticals, mediaType, dailyImpressions } = req.query;
+  const { q, country, countries, active = 'active', vertical, page, dateFrom, dateTo, allVerticals, mediaType, dailyImpressions } = req.query;
+  const activeStatus = resolveActiveStatus(active);
 
   // Пользовательское предположение "сколько показов в день делает один активный крео" —
   // единственный по-настоящему свободный параметр оценки показов/бюджета (см. комментарий
@@ -291,7 +302,7 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
       countries: countryList,
       keywords: keywordsForScrape,
       pageId: pageIdForScrape,
-      activeStatus: active === 'false' ? 'all' : 'active',
+      activeStatus,
       mediaType: mediaType === 'image' || mediaType === 'video' ? mediaType : 'all',
     });
   } catch (err) {

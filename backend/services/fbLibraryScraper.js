@@ -52,7 +52,8 @@ function cookieHeader() {
 
 function buildUrl({ country, keyword, pageId, activeStatus, mediaType }) {
   const params = new URLSearchParams({
-    active_status: activeStatus === 'all' ? 'all' : 'active',
+    // Facebook Ad Library принимает active_status = active | inactive | all.
+    active_status: activeStatus === 'all' ? 'all' : activeStatus === 'inactive' ? 'inactive' : 'active',
     ad_type: 'all',
     country: country || 'ALL',
     is_targeted_country: 'false',
