@@ -154,27 +154,59 @@ async function initFbStatus() {
 }
 
 // --- Мультиселект стран ---
-function renderCountryPanel() {
-  const panel = document.getElementById('country-panel');
-  panel.innerHTML = `
-    <label><input type="checkbox" value="ALL" ${selectedCountries.includes('ALL') ? 'checked' : ''}/> Все страны</label>
-    <hr/>
-    ${COUNTRIES.map((c) => `<label><input type="checkbox" value="${c.code}" ${selectedCountries.includes(c.code) ? 'checked' : ''}/> ${c.label}</label>`).join('')}
-  `;
-  panel.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+// Список вырос с 10 до ~95 стран — прокручивать его целиком неудобно, поэтому добавили
+// текстовый поиск по названию/коду сверху панели. Поле поиска рендерится один раз в
+// renderCountryPanel(), а сам список чекбоксов перерисовывается отдельно в renderCountryList()
+// при каждом вводе, чтобы фокус/курсор в поле поиска не сбрасывался на каждую букву.
+let countrySearchTerm = '';
+
+function renderCountryList() {
+  const listEl = document.getElementById('country-list');
+  if (!listEl) return;
+  const term = countrySearchTerm.trim().toLowerCase();
+  const filtered = term
+    ? COUNTRIES.filter((c) => c.label.toLowerCase().includes(term) || c.code.toLowerCase().includes(term))
+    : COUNTRIES;
+  listEl.innerHTML = filtered.length
+    ? filtered.map((c) => `<label><input type="checkbox" value="${c.code}" ${selectedCountries.includes(c.code) ? 'checked' : ''}/> ${c.label}</label>`).join('')
+    : '<div class="country-empty">Ничего не найдено</div>';
+  listEl.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', () => {
-      if (cb.value === 'ALL') {
-        selectedCountries = cb.checked ? ['ALL'] : ['US'];
-      } else {
-        if (selectedCountries.includes('ALL')) selectedCountries = [];
-        if (cb.checked) selectedCountries.push(cb.value);
-        else selectedCountries = selectedCountries.filter((c) => c !== cb.value);
-        if (selectedCountries.length === 0) selectedCountries = ['US'];
-      }
-      renderCountryPanel();
+      if (selectedCountries.includes('ALL')) selectedCountries = [];
+      if (cb.checked) selectedCountries.push(cb.value);
+      else selectedCountries = selectedCountries.filter((c) => c !== cb.value);
+      if (selectedCountries.length === 0) selectedCountries = ['US'];
+      renderAllCountryCheckbox();
       updateCountryToggleLabel();
     });
   });
+}
+
+function renderAllCountryCheckbox() {
+  const allCb = document.getElementById('country-all-checkbox');
+  if (allCb) allCb.checked = selectedCountries.includes('ALL');
+}
+
+function renderCountryPanel() {
+  const panel = document.getElementById('country-panel');
+  panel.innerHTML = `
+    <input type="text" id="country-search" class="country-search" placeholder="Поиск страны…" value="${escapeHtml(countrySearchTerm)}" />
+    <label><input type="checkbox" id="country-all-checkbox" value="ALL" ${selectedCountries.includes('ALL') ? 'checked' : ''}/> Все страны</label>
+    <hr/>
+    <div id="country-list"></div>
+  `;
+  document.getElementById('country-all-checkbox').addEventListener('change', (e) => {
+    selectedCountries = e.target.checked ? ['ALL'] : ['US'];
+    renderCountryList();
+    updateCountryToggleLabel();
+  });
+  const searchInput = document.getElementById('country-search');
+  searchInput.addEventListener('input', () => {
+    countrySearchTerm = searchInput.value;
+    renderCountryList();
+  });
+  searchInput.addEventListener('click', (e) => e.stopPropagation());
+  renderCountryList();
 }
 
 function updateCountryToggleLabel() {

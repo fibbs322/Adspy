@@ -327,6 +327,22 @@ select.filter-input { cursor: pointer; }
 }
 .multiselect-panel label:hover { background: var(--panel-2); }
 .multiselect-panel hr { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+.country-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 9px;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.country-search:focus { outline: none; border-color: var(--accent); }
+.country-empty { padding: 8px; font-size: 13px; color: var(--text-dim); }
 
 .stats-box {
   margin-top: 18px;
