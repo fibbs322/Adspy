@@ -29,16 +29,40 @@
 
       <form id="login-form" class="auth-form">
         <label>Email<input type="email" name="email" required /></label>
-        <label>Пароль<input type="password" name="password" required /></label>
+        <label>Пароль
+          <span class="password-field">
+            <input type="password" name="password" required />
+            <button type="button" class="toggle-eye" aria-label="Показать пароль">👁</button>
+          </span>
+        </label>
         <button type="submit">Войти</button>
         <p class="error" id="login-error"></p>
       </form>
 
       <form id="register-form" class="auth-form hidden">
         <label>Email<input type="email" name="email" required /></label>
-        <label>Пароль (мин. 8 символов)<input type="password" name="password" required minlength="8" /></label>
+        <label>Пароль (мин. 8 символов)
+          <span class="password-field">
+            <input type="password" name="password" required minlength="8" />
+            <button type="button" class="toggle-eye" aria-label="Показать пароль">👁</button>
+          </span>
+        </label>
+        <label>Повторите пароль
+          <span class="password-field">
+            <input type="password" name="password2" required minlength="8" />
+            <button type="button" class="toggle-eye" aria-label="Показать пароль">👁</button>
+          </span>
+        </label>
         <button type="submit">Создать аккаунт</button>
         <p class="error" id="register-error"></p>
+      </form>
+
+      <form id="verify-form" class="auth-form hidden">
+        <p class="verify-hint">Мы отправили код подтверждения на <b id="verify-email-label"></b>. Введите его ниже.</p>
+        <label>Код из письма<input type="text" name="code" inputmode="numeric" maxlength="6" required /></label>
+        <button type="submit">Подтвердить</button>
+        <button type="button" id="resend-code-btn" class="link-btn">Отправить код ещё раз</button>
+        <p class="error" id="verify-error"></p>
       </form>
     </div>
   </section>

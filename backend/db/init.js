@@ -15,7 +15,10 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL DEFAULT '',
   google_id TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  role TEXT NOT NULL DEFAULT 'user'
+  role TEXT NOT NULL DEFAULT 'user',
+  email_verified INTEGER NOT NULL DEFAULT 0,
+  verification_code TEXT,
+  verification_expires TEXT
 );
 `);
 
@@ -23,6 +26,17 @@ CREATE TABLE IF NOT EXISTS users (
 const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
 if (!userColumns.includes('google_id')) {
   db.exec('ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE');
+}
+
+// Миграция для подтверждения email кодом из письма.
+if (!userColumns.includes('email_verified')) {
+  db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1');
+}
+if (!userColumns.includes('verification_code')) {
+  db.exec('ALTER TABLE users ADD COLUMN verification_code TEXT');
+}
+if (!userColumns.includes('verification_expires')) {
+  db.exec('ALTER TABLE users ADD COLUMN verification_expires TEXT');
 }
 
 // Сохранённые поисковые запросы пользователя (чтобы следить за конкурентами)

@@ -2,11 +2,24 @@
 const tabBtns = document.querySelectorAll('.tab-btn');
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
+const verifyForm = document.getElementById('verify-form');
+
+// --- Показать/скрыть пароль ---
+document.querySelectorAll('.toggle-eye').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const input = btn.previousElementSibling;
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    btn.textContent = showing ? '👁' : '🙈';
+    btn.setAttribute('aria-label', showing ? 'Показать пароль' : 'Скрыть пароль');
+  });
+});
 
 tabBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     tabBtns.forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
+    verifyForm.classList.add('hidden');
     if (btn.dataset.tab === 'login') {
       loginForm.classList.remove('hidden');
       registerForm.classList.add('hidden');
@@ -16,6 +29,15 @@ tabBtns.forEach((btn) => {
     }
   });
 });
+
+function showVerifyStep(email) {
+  loginForm.classList.add('hidden');
+  registerForm.classList.add('hidden');
+  verifyForm.classList.remove('hidden');
+  verifyForm.dataset.email = email;
+  document.getElementById('verify-email-label').textContent = email;
+  document.getElementById('verify-error').textContent = '';
+}
 
 // --- Вход через Google ---
 function waitForGoogleScript(timeoutMs = 4000) {
@@ -108,7 +130,11 @@ loginForm.addEventListener('submit', async (e) => {
     API.setToken(data.token);
     showDashboard();
   } catch (err) {
-    errEl.textContent = err.message;
+    if (err.data && err.data.needsVerification) {
+      showVerifyStep(err.data.email);
+    } else {
+      errEl.textContent = err.message;
+    }
   }
 });
 
@@ -117,12 +143,56 @@ registerForm.addEventListener('submit', async (e) => {
   const errEl = document.getElementById('register-error');
   errEl.textContent = '';
   const fd = new FormData(registerForm);
+  const password = fd.get('password');
+  const password2 = fd.get('password2');
+  if (password !== password2) {
+    errEl.textContent = 'Пароли не совпадают';
+    return;
+  }
   try {
-    const data = await API.register(fd.get('email'), fd.get('password'));
+    const data = await API.register(fd.get('email'), password);
+    if (data.needsVerification) {
+      showVerifyStep(data.email);
+    } else {
+      API.setToken(data.token);
+      showDashboard();
+    }
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
+
+verifyForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('verify-error');
+  errEl.textContent = '';
+  const fd = new FormData(verifyForm);
+  try {
+    const data = await API.verifyEmail(verifyForm.dataset.email, fd.get('code'));
     API.setToken(data.token);
     showDashboard();
   } catch (err) {
     errEl.textContent = err.message;
+  }
+});
+
+document.getElementById('resend-code-btn').addEventListener('click', async (e) => {
+  const btn = e.target;
+  const errEl = document.getElementById('verify-error');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Отправляем…';
+  try {
+    await API.resendCode(verifyForm.dataset.email);
+    btn.textContent = 'Код отправлен повторно';
+  } catch (err) {
+    errEl.textContent = err.message;
+    btn.textContent = 'Отправить код ещё раз';
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      if (btn.textContent !== 'Отправить код ещё раз') btn.textContent = 'Отправить код ещё раз';
+    }, 15000);
   }
 });
 

@@ -111,6 +111,36 @@ body {
 }
 .error { color: var(--danger); font-size: 13px; min-height: 18px; }
 
+.password-field { position: relative; display: flex; }
+.password-field input { flex: 1; padding-right: 40px; }
+.password-field .toggle-eye {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 6px 8px;
+  opacity: .6;
+  line-height: 1;
+}
+.password-field .toggle-eye:hover { opacity: 1; }
+
+.verify-hint { font-size: 13px; color: var(--text-dim); margin: 0 0 4px; }
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 0;
+  text-align: left;
+}
+.link-btn:hover { text-decoration: underline; }
+.link-btn:disabled { color: var(--text-dim); cursor: default; text-decoration: none; }
+
 /* ---- Dashboard ---- */
 #dashboard-view { display: flex; }
 

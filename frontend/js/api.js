@@ -44,6 +44,12 @@ const API = {
   googleLogin(credential) {
     return this.request('/auth/google', { method: 'POST', body: { credential } });
   },
+  verifyEmail(email, code) {
+    return this.request('/auth/verify-email', { method: 'POST', body: { email, code } });
+  },
+  resendCode(email) {
+    return this.request('/auth/resend-code', { method: 'POST', body: { email } });
+  },
   getConfig() {
     return this.request('/config');
   },
