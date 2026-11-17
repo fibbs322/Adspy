@@ -1,3 +1,147 @@
+// --- Справочники: вертикали и страны ---
+// "Вертикаль" — это наш собственный тег поверх данных Facebook (у Ad Library API нет категорий
+// рекламы), он просто помогает организовать сохранённые поиски и избранное по нишам.
+const VERTICALS = [
+  { id: 'ecommerce', label: 'E-commerce', color: 'var(--v-ecommerce)' },
+  { id: 'dating', label: 'Дейтинг', color: 'var(--v-dating)' },
+  { id: 'finance', label: 'Финансы/Крипто', color: 'var(--v-finance)' },
+  { id: 'gaming', label: 'Игры', color: 'var(--v-gaming)' },
+  { id: 'beauty', label: 'Здоровье/Красота', color: 'var(--v-beauty)' },
+  { id: 'saas', label: 'SaaS/Приложения', color: 'var(--v-saas)' },
+  { id: 'education', label: 'Образование', color: 'var(--v-education)' },
+  { id: 'travel', label: 'Путешествия', color: 'var(--v-travel)' },
+  { id: 'other', label: 'Другое', color: 'var(--v-other)' },
+];
+function verticalInfo(id) {
+  return VERTICALS.find((v) => v.id === id) || null;
+}
+
+const COUNTRIES = [
+  { code: 'US', label: 'США' },
+  { code: 'UA', label: 'Украина' },
+  { code: 'PL', label: 'Польша' },
+  { code: 'DE', label: 'Германия' },
+  { code: 'GB', label: 'Великобритания' },
+  { code: 'FR', label: 'Франция' },
+  { code: 'CA', label: 'Канада' },
+  { code: 'AU', label: 'Австралия' },
+  { code: 'ES', label: 'Испания' },
+  { code: 'IT', label: 'Италия' },
+];
+
+let selectedCountries = ['US'];
+let activeVertical = null; // null = все вертикали
+
+// --- Статус подключения FB Ad Library API ---
+async function initFbStatus() {
+  const el = document.getElementById('fb-status');
+  try {
+    const config = await API.getConfig();
+    el.classList.remove('hidden');
+    if (config.fbConfigured) {
+      el.className = 'fb-status ok';
+      el.innerHTML = '<span class="dot"></span> FB API подключён';
+    } else {
+      el.className = 'fb-status off';
+      el.innerHTML = '<span class="dot"></span> FB API не настроен';
+    }
+  } catch (err) {
+    el.classList.add('hidden');
+  }
+}
+
+// --- Мультиселект стран ---
+function renderCountryPanel() {
+  const panel = document.getElementById('country-panel');
+  panel.innerHTML = `
+    <label><input type="checkbox" value="ALL" ${selectedCountries.includes('ALL') ? 'checked' : ''}/> Все страны</label>
+    <hr/>
+    ${COUNTRIES.map((c) => `<label><input type="checkbox" value="${c.code}" ${selectedCountries.includes(c.code) ? 'checked' : ''}/> ${c.label}</label>`).join('')}
+  `;
+  panel.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      if (cb.value === 'ALL') {
+        selectedCountries = cb.checked ? ['ALL'] : ['US'];
+      } else {
+        if (selectedCountries.includes('ALL')) selectedCountries = [];
+        if (cb.checked) selectedCountries.push(cb.value);
+        else selectedCountries = selectedCountries.filter((c) => c !== cb.value);
+        if (selectedCountries.length === 0) selectedCountries = ['US'];
+      }
+      renderCountryPanel();
+      updateCountryToggleLabel();
+    });
+  });
+}
+
+function updateCountryToggleLabel() {
+  const label = document.getElementById('country-toggle-label');
+  if (selectedCountries.includes('ALL')) {
+    label.textContent = 'Все страны';
+  } else if (selectedCountries.length === 1) {
+    const c = COUNTRIES.find((x) => x.code === selectedCountries[0]);
+    label.textContent = c ? c.label : selectedCountries[0];
+  } else {
+    label.textContent = `Страны: ${selectedCountries.join(', ')}`;
+  }
+}
+
+function setSelectedCountries(list) {
+  selectedCountries = (list && list.length) ? list : ['US'];
+  renderCountryPanel();
+  updateCountryToggleLabel();
+}
+
+document.getElementById('country-toggle').addEventListener('click', () => {
+  document.getElementById('country-panel').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  const ms = document.getElementById('country-multiselect');
+  if (!ms.contains(e.target)) document.getElementById('country-panel').classList.add('hidden');
+});
+renderCountryPanel();
+updateCountryToggleLabel();
+
+// --- Фильтр по вертикали (чипы в сайдбаре + вкладки в шапке, всегда синхронизированы) ---
+function renderVerticalPickers() {
+  const sidebarEl = document.getElementById('vertical-filter');
+  const topbarEl = document.getElementById('vertical-tabs');
+
+  const chipHtml = (v) => `
+    <span class="v-chip ${activeVertical === v.id ? 'active' : ''}" data-id="${v.id}" style="${activeVertical === v.id ? `color:${v.color}` : ''}">
+      <span class="v-dot" style="background:${v.color}"></span>${v.label}
+    </span>`;
+
+  sidebarEl.innerHTML = `
+    <span class="v-chip ${activeVertical === null ? 'active' : ''}" data-id="">Все</span>
+    ${VERTICALS.map(chipHtml).join('')}
+  `;
+
+  topbarEl.classList.remove('hidden');
+  topbarEl.innerHTML = `
+    <button type="button" data-id="" class="${activeVertical === null ? 'active' : ''}">Все</button>
+    ${VERTICALS.map((v) => `<button type="button" data-id="${v.id}" class="${activeVertical === v.id ? 'active' : ''}" style="${activeVertical === v.id ? `background:${v.color}` : ''}">${v.label}</button>`).join('')}
+  `;
+
+  const handlers = (el) => {
+    el.querySelectorAll('[data-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activeVertical = btn.dataset.id || null;
+        renderVerticalPickers();
+      });
+    });
+  };
+  handlers(sidebarEl);
+  handlers(topbarEl);
+}
+renderVerticalPickers();
+
+function populateVerticalSelect(selectEl, value) {
+  selectEl.innerHTML = '<option value="">— без вертикали —</option>' +
+    VERTICALS.map((v) => `<option value="${v.id}">${v.label}</option>`).join('');
+  selectEl.value = value || '';
+}
+
 // --- Переключение вкладок авторизации ---
 const tabBtns = document.querySelectorAll('.tab-btn');
 const loginForm = document.getElementById('login-form');
@@ -93,7 +237,8 @@ const dashboardView = document.getElementById('dashboard-view');
 const nav = document.getElementById('nav');
 
 function renderNav() {
-  nav.innerHTML = '';
+  const navButtons = document.getElementById('nav-buttons');
+  navButtons.innerHTML = '';
   if (API.getToken()) {
     const logoutBtn = document.createElement('button');
     logoutBtn.textContent = 'Выйти';
@@ -101,13 +246,15 @@ function renderNav() {
       API.clearToken();
       showAuth();
     };
-    nav.appendChild(logoutBtn);
+    navButtons.appendChild(logoutBtn);
   }
 }
 
 function showAuth() {
   authView.classList.remove('hidden');
   dashboardView.classList.add('hidden');
+  document.getElementById('vertical-tabs').classList.add('hidden');
+  document.getElementById('fb-status').classList.add('hidden');
   renderNav();
 }
 
@@ -115,6 +262,7 @@ function showDashboard() {
   authView.classList.add('hidden');
   dashboardView.classList.remove('hidden');
   renderNav();
+  initFbStatus();
   loadSavedSearches();
   loadFavorites();
 }
@@ -215,18 +363,34 @@ function formatDate(iso) {
   return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function updateStat(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
 function renderAds(payload) {
   const { ads, count, volume_by_page } = payload;
+  updateStat('stat-results', count || 0);
+
   if (!ads || ads.length === 0) {
-    resultsEl.innerHTML = '<div class="empty-state">Ничего не найдено. Попробуй другой запрос или страну.</div>';
-    searchMetaEl.textContent = '';
+    resultsEl.innerHTML = '<div class="empty-state">Ничего не найдено. Попробуй другой запрос, вертикаль или страну.</div>';
+    searchMetaEl.innerHTML = '';
     return;
   }
 
-  searchMetaEl.textContent = `Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.`;
+  const vInfo = activeVertical ? verticalInfo(activeVertical) : null;
+
+  searchMetaEl.innerHTML = `
+    <span>Найдено объявлений: ${count}. Уникальных рекламодателей: ${Object.keys(volume_by_page).length}.</span>
+    <span class="fb-note">${escapeHtml(payload.note || '')}</span>
+  `;
 
   resultsEl.innerHTML = ads.map((ad) => `
     <div class="ad-card" data-ad='${escapeHtml(JSON.stringify(ad))}'>
+      <div class="card-top">
+        ${vInfo ? `<span class="v-badge" style="background:${vInfo.color}">${vInfo.label}</span>` : '<span></span>'}
+        <div class="platforms">${(ad.platforms || []).slice(0, 3).map((p) => `<span>${escapeHtml(p)}</span>`).join('')}</div>
+      </div>
       <div class="page-name">${escapeHtml(ad.page_name || 'Без названия')}</div>
       <div class="badge">Креативов у страницы: ${volume_by_page[ad.page_name || ad.page_id] || 1}</div>
       <div class="creative-text">${escapeHtml(ad.creative_text || ad.link_title || 'Текст креатива недоступен')}</div>
@@ -235,11 +399,20 @@ function renderAds(payload) {
         <span class="running-days">${ad.running_days != null ? ad.running_days + ' дн.' : '—'}</span>
       </div>
       <div class="actions">
+        <button class="preview-btn">🔍 Превью</button>
         <a href="${ad.snapshot_url || '#'}" target="_blank" rel="noopener">Открыть в FB</a>
         <button class="fav-btn">⭐ В избранное</button>
       </div>
     </div>
   `).join('');
+
+  resultsEl.querySelectorAll('.preview-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const card = e.target.closest('.ad-card');
+      const ad = JSON.parse(card.dataset.ad);
+      openPreview(ad);
+    });
+  });
 
   resultsEl.querySelectorAll('.fav-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
@@ -252,8 +425,10 @@ function renderAds(payload) {
           snapshot_url: ad.snapshot_url,
           ad_creation_time: ad.launch_date,
           raw: ad,
+          vertical: activeVertical || null,
         });
         btn.textContent = '✅ Добавлено';
+        btn.classList.add('is-fav');
         loadFavorites();
       } catch (err) {
         btn.textContent = err.message.includes('избранном') ? 'Уже в избранном' : 'Ошибка';
@@ -262,14 +437,38 @@ function renderAds(payload) {
   });
 }
 
+function openPreview(ad) {
+  const vInfo = activeVertical ? verticalInfo(activeVertical) : null;
+  document.getElementById('preview-body').innerHTML = `
+    ${vInfo ? `<span class="v-badge" style="background:${vInfo.color}">${vInfo.label}</span>` : ''}
+    <div class="page-name">${escapeHtml(ad.page_name || 'Без названия')}</div>
+    <div class="creative-text">${escapeHtml(ad.creative_text || ad.link_title || 'Текст креатива недоступен')}</div>
+    ${ad.link_description ? `<div class="creative-text">${escapeHtml(ad.link_description)}</div>` : ''}
+    <div class="meta-row">
+      <span>Запуск: ${formatDate(ad.launch_date)}</span>
+      <span class="running-days">${ad.running_days != null ? ad.running_days + ' дн.' : '—'}</span>
+    </div>
+    <div class="platforms">${(ad.platforms || []).map((p) => `<span>${escapeHtml(p)}</span>`).join('')}</div>
+    <div class="actions" style="margin-top:14px">
+      <a href="${ad.snapshot_url || '#'}" target="_blank" rel="noopener">Открыть оригинал в Facebook</a>
+    </div>
+  `;
+  document.getElementById('preview-modal').classList.remove('hidden');
+}
+document.getElementById('preview-close').addEventListener('click', () => {
+  document.getElementById('preview-modal').classList.add('hidden');
+});
+document.getElementById('preview-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'preview-modal') e.target.classList.add('hidden');
+});
+
 let lastQuery = null;
 
 searchForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const q = document.getElementById('search-q').value.trim();
-  const country = document.getElementById('search-country').value;
   const active = document.getElementById('search-active').checked;
-  lastQuery = { q, country, active };
+  lastQuery = { q, countries: [...selectedCountries], active, vertical: activeVertical };
 
   resultsEl.innerHTML = '<div class="empty-state">Ищем…</div>';
   try {
@@ -280,29 +479,46 @@ searchForm.addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('save-search-btn').addEventListener('click', async () => {
+// --- Модалка "Сохранить поиск" (вместо нативного prompt()) ---
+const saveModal = document.getElementById('save-search-modal');
+document.getElementById('save-search-btn').addEventListener('click', () => {
   if (!lastQuery || !lastQuery.q) {
     alert('Сначала выполни поиск.');
     return;
   }
-  const label = prompt('Название для сохранённого поиска:', lastQuery.q);
+  document.getElementById('save-search-label').value = lastQuery.q;
+  populateVerticalSelect(document.getElementById('save-search-vertical'), lastQuery.vertical);
+  saveModal.classList.remove('hidden');
+});
+document.getElementById('save-search-cancel').addEventListener('click', () => saveModal.classList.add('hidden'));
+saveModal.addEventListener('click', (e) => { if (e.target === saveModal) saveModal.classList.add('hidden'); });
+document.getElementById('save-search-confirm').addEventListener('click', async () => {
+  const label = document.getElementById('save-search-label').value.trim();
   if (!label) return;
-  await API.saveSearch(label, lastQuery);
+  const vertical = document.getElementById('save-search-vertical').value || null;
+  await API.saveSearch(label, { ...lastQuery, vertical });
+  saveModal.classList.add('hidden');
   loadSavedSearches();
 });
+
+function vDotHtml(verticalId) {
+  const v = verticalId ? verticalInfo(verticalId) : null;
+  return v ? `<span class="v-dot" style="background:${v.color}"></span>` : '';
+}
 
 // --- Сохранённые поиски ---
 async function loadSavedSearches() {
   const listEl = document.getElementById('saved-list');
   try {
     const items = await API.getSavedSearches();
+    updateStat('stat-saved', items.length);
     if (items.length === 0) {
       listEl.innerHTML = '<li style="opacity:.6">Пока пусто</li>';
       return;
     }
     listEl.innerHTML = items.map((it) => `
       <li data-id="${it.id}">
-        <span class="run-saved">${escapeHtml(it.label)}</span>
+        <span class="run-saved">${vDotHtml(it.query_params.vertical)}${escapeHtml(it.label)}</span>
         <button class="del-saved">✕</button>
       </li>
     `).join('');
@@ -311,8 +527,10 @@ async function loadSavedSearches() {
       el.addEventListener('click', () => {
         const qp = items[idx].query_params;
         document.getElementById('search-q').value = qp.q;
-        document.getElementById('search-country').value = qp.country;
+        setSelectedCountries(qp.countries || (qp.country ? [qp.country] : ['US']));
         document.getElementById('search-active').checked = qp.active;
+        activeVertical = qp.vertical || null;
+        renderVerticalPickers();
         searchForm.requestSubmit();
       });
     });
@@ -332,13 +550,14 @@ async function loadFavorites() {
   const listEl = document.getElementById('fav-list');
   try {
     const items = await API.getFavorites();
+    updateStat('stat-favs', items.length);
     if (items.length === 0) {
       listEl.innerHTML = '<li style="opacity:.6">Пока пусто</li>';
       return;
     }
     listEl.innerHTML = items.map((it) => `
       <li data-id="${escapeHtml(it.fb_ad_id)}">
-        <a class="run-fav" href="${it.snapshot_url || '#'}" target="_blank" rel="noopener">${escapeHtml(it.page_name || it.fb_ad_id)}</a>
+        <a class="run-fav" href="${it.snapshot_url || '#'}" target="_blank" rel="noopener">${vDotHtml(it.vertical)}${escapeHtml(it.page_name || it.fb_ad_id)}</a>
         <button class="del-fav">✕</button>
       </li>
     `).join('');

@@ -54,8 +54,10 @@ const API = {
     return this.request('/config');
   },
 
-  searchAds({ q, country, active }) {
-    const params = new URLSearchParams({ q, country, active });
+  searchAds({ q, countries, active, vertical }) {
+    const params = new URLSearchParams({ q, active });
+    params.set('countries', (countries || []).join(','));
+    if (vertical) params.set('vertical', vertical);
     return this.request(`/ads/search?${params.toString()}`);
   },
 

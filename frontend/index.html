@@ -11,7 +11,11 @@
 
   <header class="topbar">
     <div class="brand">🔍 AdSpy</div>
-    <nav id="nav" class="nav"></nav>
+    <div id="vertical-tabs" class="vertical-tabs hidden"></div>
+    <nav id="nav" class="nav">
+      <span id="fb-status" class="fb-status hidden"></span>
+      <span id="nav-buttons"></span>
+    </nav>
   </header>
 
   <!-- Экран авторизации -->
@@ -70,6 +74,36 @@
   <!-- Основной экран -->
   <section id="dashboard-view" class="view hidden">
     <aside class="sidebar">
+      <form id="search-form">
+        <h3 class="filter-title">Ключевое слово</h3>
+        <input type="text" id="search-q" class="filter-input" placeholder="Бренд, страница, товар…" required />
+
+        <h3 class="filter-title">Вертикаль <span class="filter-hint">(ваш тег, для сортировки)</span></h3>
+        <div id="vertical-filter" class="vertical-filter"></div>
+
+        <h3 class="filter-title">Страны</h3>
+        <div class="multiselect" id="country-multiselect">
+          <button type="button" class="multiselect-toggle" id="country-toggle">
+            <span id="country-toggle-label">Все страны</span>
+            <span class="chevron">▾</span>
+          </button>
+          <div class="multiselect-panel hidden" id="country-panel"></div>
+        </div>
+
+        <label class="checkbox-label filter-checkbox">
+          <input type="checkbox" id="search-active" checked /> только активные сейчас
+        </label>
+
+        <button type="submit" class="btn-primary">🔎 Найти креативы</button>
+        <button type="button" id="save-search-btn" class="btn-secondary">💾 Сохранить поиск</button>
+      </form>
+
+      <div class="stats-box" id="stats-box">
+        <div class="stats-row"><span>Сохранённых поисков</span><b id="stat-saved">0</b></div>
+        <div class="stats-row"><span>В избранном</span><b id="stat-favs">0</b></div>
+        <div class="stats-row"><span>Результатов сейчас</span><b id="stat-results">0</b></div>
+      </div>
+
       <h3>Сохранённые поиски</h3>
       <ul id="saved-list" class="saved-list"></ul>
       <h3>Избранное</h3>
@@ -77,27 +111,35 @@
     </aside>
 
     <main class="main">
-      <form id="search-form" class="search-bar">
-        <input type="text" id="search-q" placeholder="Название бренда, страницы или ключевое слово…" required />
-        <select id="search-country">
-          <option value="US">США</option>
-          <option value="UA">Украина</option>
-          <option value="PL">Польша</option>
-          <option value="DE">Германия</option>
-          <option value="GB">Великобритания</option>
-          <option value="ALL">Все страны</option>
-        </select>
-        <label class="checkbox-label">
-          <input type="checkbox" id="search-active" checked /> только активные
-        </label>
-        <button type="submit">Найти</button>
-        <button type="button" id="save-search-btn">💾 Сохранить поиск</button>
-      </form>
-
       <div id="search-meta" class="search-meta"></div>
       <div id="results" class="results-grid"></div>
     </main>
   </section>
+
+  <!-- Модалка сохранения поиска -->
+  <div id="save-search-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <h3>Сохранить поиск</h3>
+      <label class="modal-label">Название
+        <input type="text" id="save-search-label" placeholder="Напр. «Конкурент X»" />
+      </label>
+      <label class="modal-label">Вертикаль (необязательно)
+        <select id="save-search-vertical"></select>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="save-search-cancel" class="btn-secondary">Отмена</button>
+        <button type="button" id="save-search-confirm" class="btn-primary">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модалка предпросмотра объявления -->
+  <div id="preview-modal" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-wide">
+      <button type="button" class="modal-close" id="preview-close">✕</button>
+      <div id="preview-body"></div>
+    </div>
+  </div>
 
   <script src="/js/api.js"></script>
   <script src="/js/app.js"></script>

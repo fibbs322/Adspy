@@ -62,10 +62,16 @@ CREATE TABLE IF NOT EXISTS favorites (
   ad_creation_time TEXT,
   first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
   raw_json TEXT,
+  vertical TEXT,
   UNIQUE(user_id, fb_ad_id),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `);
+
+const favColumns = db.prepare("PRAGMA table_info(favorites)").all().map((c) => c.name);
+if (!favColumns.includes('vertical')) {
+  db.exec('ALTER TABLE favorites ADD COLUMN vertical TEXT');
+}
 
 // Локальный кэш результатов поиска (снижает число обращений к FB API и даёт историю "с какой даты крутится")
 db.exec(`

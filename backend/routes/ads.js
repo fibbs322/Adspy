@@ -36,7 +36,7 @@ function daysBetween(fromIso, toIso) {
 // Поиск объявлений: по ключевому слову или названию страницы.
 // GET /api/ads/search?q=nike&country=US&active=true
 router.get('/search', requireAuth, async (req, res) => {
-  const { q, country = 'US', active = 'true' } = req.query;
+  const { q, country, countries, active = 'true', vertical } = req.query;
 
   if (!q || !q.trim()) {
     return res.status(400).json({ error: 'Укажи поисковый запрос (параметр q)' });
@@ -48,11 +48,22 @@ router.get('/search', requireAuth, async (req, res) => {
     });
   }
 
+  // countries может прийти как "US,UA,PL" (новый мультивыбор) или country=US (старый формат, для совместимости).
+  let countryList = [];
+  if (countries && countries.trim()) {
+    countryList = countries.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  } else if (country && country.trim()) {
+    countryList = [country.trim().toUpperCase()];
+  }
+  // Facebook ждёт "ALL" отдельным словом, не внутри списка стран — если он там есть, игнорируем остальное.
+  if (countryList.includes('ALL')) countryList = ['ALL'];
+  if (countryList.length === 0) countryList = ['US'];
+
   const params = new URLSearchParams({
     access_token: process.env.FB_ACCESS_TOKEN,
     search_terms: q.trim(),
     ad_type: 'ALL',
-    ad_reached_countries: JSON.stringify([country]),
+    ad_reached_countries: JSON.stringify(countryList),
     ad_active_status: active === 'false' ? 'ALL' : 'ACTIVE',
     fields: FIELDS,
     limit: '50',
@@ -119,6 +130,8 @@ router.get('/search', requireAuth, async (req, res) => {
       ads: results,
       volume_by_page: volumeByPage,
       paging: data.paging || null,
+      countries: countryList,
+      vertical: vertical || null,
       note: 'Meta не раскрывает точный бюджет/показы обычной коммерческой рекламы. running_days и число активных креативов у страницы — лучшая доступная оценка объёма.',
     });
   } catch (err) {
@@ -153,14 +166,14 @@ router.delete('/saved-searches/:id', requireAuth, (req, res) => {
 
 // Избранное
 router.post('/favorites', requireAuth, (req, res) => {
-  const { fb_ad_id, page_name, snapshot_url, ad_creation_time, raw } = req.body;
+  const { fb_ad_id, page_name, snapshot_url, ad_creation_time, raw, vertical } = req.body;
   if (!fb_ad_id) return res.status(400).json({ error: 'Нужен fb_ad_id' });
 
   try {
     db.prepare(`
-      INSERT INTO favorites (user_id, fb_ad_id, page_name, snapshot_url, ad_creation_time, raw_json)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(req.user.id, fb_ad_id, page_name || null, snapshot_url || null, ad_creation_time || null, JSON.stringify(raw || {}));
+      INSERT INTO favorites (user_id, fb_ad_id, page_name, snapshot_url, ad_creation_time, raw_json, vertical)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(req.user.id, fb_ad_id, page_name || null, snapshot_url || null, ad_creation_time || null, JSON.stringify(raw || {}), vertical || null);
     res.status(201).json({ ok: true });
   } catch (err) {
     if (String(err.message).includes('UNIQUE')) {

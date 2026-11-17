@@ -24,7 +24,10 @@ app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISO
 
 // Отдаёт фронтенду публичные настройки (например, включена ли кнопка "Войти через Google")
 app.get('/api/config', (req, res) => {
-  res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null });
+  const fbConfigured = Boolean(
+    process.env.FB_ACCESS_TOKEN && process.env.FB_ACCESS_TOKEN !== 'paste_your_facebook_access_token_here'
+  );
+  res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null, fbConfigured });
 });
 
 // Отдаём статический фронтенд (папка ../frontend)
