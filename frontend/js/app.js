@@ -498,7 +498,7 @@ function renderAds(payload) {
   if (backBtn) backBtn.addEventListener('click', goBackToPreviousSearch);
 
   resultsEl.innerHTML = ads.map((ad) => `
-    <div class="ad-card" data-ad='${escapeHtml(JSON.stringify(ad))}'>
+    <div class="creative-card" data-creative='${escapeHtml(JSON.stringify(ad))}'>
       <div class="thumb-wrap">${thumbHtml(ad)}</div>
       <div class="card-top">
         ${vInfo ? `<span class="v-badge" style="background:${vInfo.color}">${vInfo.label}</span>` : '<span></span>'}
@@ -528,8 +528,8 @@ function renderAds(payload) {
 
   resultsEl.querySelectorAll('.page-link').forEach((btn) => {
     btn.addEventListener('click', (e) => {
-      const card = e.target.closest('.ad-card');
-      const ad = JSON.parse(card.dataset.ad);
+      const card = e.target.closest('.creative-card');
+      const ad = JSON.parse(card.dataset.creative);
       if (!ad.page_id) { alert('У этого объявления нет ID страницы от Facebook.'); return; }
       searchByPage(ad.page_id, ad.page_name);
     });
@@ -537,24 +537,24 @@ function renderAds(payload) {
 
   resultsEl.querySelectorAll('.page-link-newtab').forEach((btn) => {
     btn.addEventListener('click', (e) => {
-      const card = e.target.closest('.ad-card');
-      const ad = JSON.parse(card.dataset.ad);
+      const card = e.target.closest('.creative-card');
+      const ad = JSON.parse(card.dataset.creative);
       searchByPage(ad.page_id, ad.page_name, { newTab: true });
     });
   });
 
   resultsEl.querySelectorAll('.preview-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
-      const card = e.target.closest('.ad-card');
-      const ad = JSON.parse(card.dataset.ad);
+      const card = e.target.closest('.creative-card');
+      const ad = JSON.parse(card.dataset.creative);
       openPreview(ad);
     });
   });
 
   resultsEl.querySelectorAll('.thumb-wrap').forEach((el) => {
     el.addEventListener('click', (e) => {
-      const card = e.target.closest('.ad-card');
-      const ad = JSON.parse(card.dataset.ad);
+      const card = e.target.closest('.creative-card');
+      const ad = JSON.parse(card.dataset.creative);
       openPreview(ad);
     });
     el.addEventListener('mouseenter', () => {
@@ -569,8 +569,8 @@ function renderAds(payload) {
 
   resultsEl.querySelectorAll('.fav-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
-      const card = e.target.closest('.ad-card');
-      const ad = JSON.parse(card.dataset.ad);
+      const card = e.target.closest('.creative-card');
+      const ad = JSON.parse(card.dataset.creative);
       try {
         await API.addFavorite({
           fb_ad_id: ad.id,
