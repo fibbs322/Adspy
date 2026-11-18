@@ -218,7 +218,7 @@ const ALL_VERTICALS_SEED_KEYWORDS = Object.values(VERTICAL_SEED_KEYWORDS)
 // получить вперемешку объявления разных ниш — сделать несколько параллельных запросов).
 router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) => {
   try {
-  const { q, country, countries, active = 'active', vertical, page, dateFrom, dateTo, allVerticals, mediaType, dailyImpressions } = req.query;
+  const { q, country, countries, active = 'all', vertical, page, dateFrom, dateTo, allVerticals, mediaType, dailyImpressions } = req.query;
   const activeStatus = resolveActiveStatus(active);
 
   // Пользовательское предположение "сколько показов в день делает один активный крео" —

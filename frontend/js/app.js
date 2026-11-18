@@ -901,7 +901,7 @@ searchForm.addEventListener('submit', async (e) => {
   // Статус объявлений: active/inactive/all вместо старого чекбокса "только активные"
   // (у Facebook API active_status — это как раз три значения, а не булево).
   const activeStatusInput = document.querySelector('input[name="active-status"]:checked');
-  const active = activeStatusInput ? activeStatusInput.value : 'active';
+  const active = activeStatusInput ? activeStatusInput.value : 'all';
   const dateFrom = document.getElementById('search-date-from').value || null;
   const dateTo = document.getElementById('search-date-to').value || null;
   const sort = document.getElementById('search-sort').value;
@@ -1010,7 +1010,7 @@ function applyQueryToForm(qp) {
   let activeStatusValue = qp.active;
   if (activeStatusValue === true || activeStatusValue === 'true') activeStatusValue = 'active';
   else if (activeStatusValue === false || activeStatusValue === 'false') activeStatusValue = 'all';
-  else if (!activeStatusValue) activeStatusValue = 'active';
+  else if (!activeStatusValue) activeStatusValue = 'all';
   const activeRadio = document.querySelector(`input[name="active-status"][value="${activeStatusValue}"]`);
   if (activeRadio) activeRadio.checked = true;
   const mediaRadio = document.querySelector(`input[name="media-type"][value="${qp.mediaType || 'all'}"]`);
