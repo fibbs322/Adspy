@@ -353,17 +353,31 @@ async function scrapeOnce({ country, keyword, pageId, activeStatus, mediaType },
 // = 84 комбинации отработали быстро и без проблем), но далеко ниже того, что реально
 // положило сервис (2940). Для 1-2 стран это не обрезает список слов вообще.
 const MAX_FANOUT_COMBINATIONS = 150;
-const SCRAPE_CONCURRENCY = 8;
+// 18.11, часть 2: единственный статичный IP (свой через прокси или собственный у Render)
+// точно так же "сгорает", если долбить его десятками запросов почти одновременно —
+// не важно, прямой это IP или прокси, если прокси тоже один фиксированный адрес, а не
+// ротируемый пул. Снизили параллелизм и добавили случайную паузу перед каждым запросом,
+// чтобы растянуть пачку по времени и не выглядеть как бот-вспышка. Это не отменяет того,
+// что для по-настоящему больших фан-аутов (много стран × много слов) нужен именно
+// РОТИРУЕМЫЙ прокси — троттлинг снижает риск, но не убирает его полностью на одном IP.
+const SCRAPE_CONCURRENCY = 3;
+const MIN_DELAY_MS = 250;
+const MAX_DELAY_MS = 700;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Простой пул воркеров без внешних зависимостей (p-limit и т.п.): берёт задачи по
-// очереди, не больше `limit` одновременно — в отличие от Promise.allSettled(tasks),
-// который стартует все задачи в тот же тик.
+// очереди, не больше `limit` одновременно, с небольшой случайной паузой перед каждой —
+// в отличие от Promise.allSettled(tasks), который стартует все задачи в тот же тик.
 async function runWithLimit(taskFns, limit) {
   const results = new Array(taskFns.length);
   let nextIndex = 0;
   async function worker() {
     while (nextIndex < taskFns.length) {
       const i = nextIndex++;
+      await sleep(MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS));
       try {
         results[i] = { status: 'fulfilled', value: await taskFns[i]() };
       } catch (err) {
