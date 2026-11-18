@@ -18,6 +18,52 @@
 
 const BASE_URL = 'https://www.facebook.com/ads/library/';
 
+// Прокси для исходящих запросов к Facebook. 18.11: datacenter-IP у Render отдаёт верные
+// агрегированные счётчики, но прячет сами объявления (edges) — похоже на различение
+// Facebook'ом дата-центровых IP от обычных. Решение — слать запросы через резидентный
+// SOCKS5-прокси, заданный в SCRAPER_PROXY_URL. Поддерживаем и обычный вид URL
+// (socks5://user:pass@host:port), и частый у прокси-листов вид host:port:user:pass
+// без протокола вообще. Без переменной окружения прокси просто не используется —
+// ничего не ломается на локальной разработке или если прокси ещё не настроен.
+function normalizeProxyUrl(raw) {
+  if (!raw) return null;
+  let protocol = 'socks5';
+  let rest = raw.trim();
+  const protoMatch = rest.match(/^([a-z0-9]+):\/\/(.+)$/i);
+  if (protoMatch) {
+    protocol = protoMatch[1];
+    rest = protoMatch[2];
+  }
+  if (rest.includes('@')) return `${protocol}://${rest}`;
+  const parts = rest.split(':');
+  if (parts.length === 4) {
+    const [host, port, user, pass] = parts;
+    return `${protocol}://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+  }
+  if (parts.length === 2) return `${protocol}://${rest}`;
+  return null;
+}
+
+const { SocksProxyAgent } = require('socks-proxy-agent');
+const nodeFetch = require('node-fetch');
+
+const proxyUrl = normalizeProxyUrl(process.env.SCRAPER_PROXY_URL);
+const proxyAgent = proxyUrl ? new SocksProxyAgent(proxyUrl) : null;
+if (proxyAgent) {
+  // Без логина/пароля в логе — только хост, чтобы не светить учётку прокси.
+  const hostOnly = proxyUrl.replace(/\/\/.*@/, '//***@');
+  console.log('FB scraper: используем прокси', hostOnly);
+} else {
+  console.log('FB scraper: прокси не настроен (SCRAPER_PROXY_URL пуст), идём напрямую');
+}
+
+// Единая точка fetch для скрейпера: с прокси — через node-fetch (у него есть опция
+// agent), без прокси — обычный нативный fetch, как и раньше.
+async function proxiedFetch(url, options = {}) {
+  if (proxyAgent) return nodeFetch(url, { ...options, agent: proxyAgent });
+  return fetch(url, options);
+}
+
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -209,7 +255,7 @@ async function solveClientChallenge(challengePath, refererUrl) {
   const headers = { ...BROWSER_HEADERS, Referer: refererUrl, Origin: 'https://www.facebook.com' };
   const cookies = cookieHeader();
   if (cookies) headers['Cookie'] = cookies;
-  const res = await fetch(url, { method: 'POST', headers });
+  const res = await proxiedFetch(url, { method: 'POST', headers });
   setCookieFromResponse(res);
   try { await res.text(); } catch (_) {}
   return res.ok;
@@ -223,7 +269,7 @@ async function scrapeOnce({ country, keyword, pageId, activeStatus, mediaType },
   const cookies = cookieHeader();
   if (cookies) headers['Cookie'] = cookies;
 
-  const res = await fetch(url, { headers });
+  const res = await proxiedFetch(url, { headers });
   setCookieFromResponse(res);
 
   if (!res.ok) {
