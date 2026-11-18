@@ -78,8 +78,18 @@ function buildUrl({ country, keyword, pageId, activeStatus, mediaType }) {
 // блокам (в составе "require"-протокола their comet/relay фреймворка) — ищем среди
 // них тот, что содержит ad_library_main.search_results_connection.
 function extractSearchResults(html) {
+  // Facebook иногда кладёт результаты поиска не в один <script type="application/json">
+  // блок, а в несколько (пагинация/relay-инкремент): один блок может нести правильный
+  // общий count, но пустой edges (плейсхолдер/заглушка), а реальные edges — в другом
+  // таком же блоке дальше по странице. Раньше брали первый подходящий блок и сразу
+  // возвращали — если это была заглушка, получали "0 объявлений, но верный count"
+  // (именно это и наблюдали 18.11, спустя ~12 часов после инцидента). Теперь
+  // собираем ВСЕ блоки с этим ключом и берём тот, где реально есть edges; если такого
+  // нет — возвращаем блок с наибольшим count (для диагностики), но уже без иллюзии,
+  // что мы просто взяли "не тот" блок по ошибке.
   const scriptRegex = /<script type="application\/json"[^>]*>([\s\S]*?)<\/script>/g;
   let match;
+  const candidates = [];
   while ((match = scriptRegex.exec(html)) !== null) {
     const raw = match[1];
     if (!raw.includes('search_results_connection')) continue;
@@ -90,9 +100,14 @@ function extractSearchResults(html) {
       continue;
     }
     const found = deepFindSearchConnection(parsed);
-    if (found) return found;
+    if (found) candidates.push(found);
   }
-  return null;
+  if (!candidates.length) return null;
+  const withEdges = candidates.find((c) => (c.edges || []).length > 0);
+  if (withEdges) return withEdges;
+  // Ни в одном блоке нет edges — вернём с наибольшим count, чтобы хотя бы метаданные
+  // (общее число) были реалистичными, а не из случайного первого блока.
+  return candidates.reduce((best, c) => ((c.count || 0) > (best.count || 0) ? c : best), candidates[0]);
 }
 
 function deepFindSearchConnection(node, depth = 0) {
