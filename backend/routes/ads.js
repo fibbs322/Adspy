@@ -310,6 +310,12 @@ router.get('/search', requireAuth, requireSearchAccess, async (req, res, next) =
     return res.status(500).json({ error: 'Не удалось связаться с Facebook Ad Library' });
   }
 
+  // ВРЕМЕННАЯ диагностика инцидента 18.11 — см. комментарий у debug-поля в scrapeOnce.
+  // Снять вместе с ним после диагностики.
+  if (!scrapeResult.ads.length && scrapeResult.debug) {
+    console.error('AdSpy diag (0 ads):', JSON.stringify(scrapeResult.debug));
+  }
+
   if (scrapeResult.captchaRequired) {
     return res.status(503).json({
       error: 'Facebook временно запросил капчу на странице Библиотеки рекламы — попробуй ещё раз через пару минут.',

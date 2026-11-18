@@ -257,7 +257,24 @@ async function scrapeOnce({ country, keyword, pageId, activeStatus, mediaType },
     }
   }
 
-  return { ads, count: connection.count || ads.length, captchaRequired: false, blocked: false };
+  return {
+    ads,
+    count: connection.count || ads.length,
+    captchaRequired: false,
+    blocked: false,
+    // ВРЕМЕННАЯ диагностика инцидента 18.11 (сервис отдаёт 0 объявлений на все запросы
+    // уже 12+ часов после всплеска нагрузки) — нужно увидеть, что именно лежит в найденном
+    // connection-блоке: это реально "0 от Facebook" (edgeCount=0, connectionCount=0) или
+    // блок находится, но почему-то без edges при ненулевом count (другая причина). Снять
+    // после диагностики.
+    debug: {
+      edgeCount: (connection.edges || []).length,
+      connectionCount: connection.count,
+      hasEdgesKey: Object.prototype.hasOwnProperty.call(connection, 'edges'),
+      htmlLength: html.length,
+      requestUrl: url,
+    },
+  };
 }
 
 // Максимум сколько комбинаций (страна × слово) реально отправляем в одном поиске.
